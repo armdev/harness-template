@@ -1,0 +1,45 @@
+# Harness sensors as containers. Use as an overlay or pull it in with a top-level `include:`.
+#   docker compose -f docker-compose.yml -f compose.harness.yml run --rm harness run --stage pre-commit
+# Two planes from one image:
+#   harness       static sensors: no network, read-only repo, no capabilities (the agent's code cannot phone home)
+#   harness-live  inferential + online sensors: project network, reaches the LLM and the running stack
+
+x-harness: &harness
+  build: { context: ., dockerfile: harness/Dockerfile }
+  image: ${HARNESS_IMAGE:-haytarar-harness:0.1.0}
+  profiles: [harness]
+  user: "${HARNESS_UID:-1000}:${HARNESS_GID:-1000}"    # report files owned by the developer, not root
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  working_dir: /work
+  volumes:
+    - .:/work:ro                                         # sensors observe; they never edit the code
+    - ./.harness:/out                                    # report.md, results/, ledger.jsonl
+  command: ["run", "--stage", "pre-commit"]
+
+services:
+  harness:
+    <<: *harness
+    network_mode: none
+    environment:
+      HARNESS_PLANE: static
+      HARNESS_ROOT: /work
+      HARNESS_OUT: /out
+      HARNESS_TIMEOUT: ${HARNESS_TIMEOUT:-300}
+
+  harness-live:
+    <<: *harness
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      HARNESS_PLANE: live
+      HARNESS_ROOT: /work
+      HARNESS_OUT: /out
+      HARNESS_TIMEOUT: ${HARNESS_TIMEOUT:-300}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-not-needed}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
+      REVIEW_MODEL: ${REVIEW_MODEL:-}                    # a stronger model for review than for generation, if you have one
+      LLM_NO_THINK: ${LLM_NO_THINK:-true}
+      REVIEW_DIFF_BASE: ${REVIEW_DIFF_BASE:-}            # empty = staged changes; CI: origin/main
