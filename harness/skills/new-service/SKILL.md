@@ -1,6 +1,6 @@
 ---
 name: new-service
-description: Add a new backend service to haytarar (compose entry, identity, DB role, migrations, contract, alerts). Use whenever a task needs a new deployable, or a new caller -> callee edge between services.
+description: Add a new backend service to air-harness (compose entry, identity, DB role, migrations, contract, alerts). Use whenever a task needs a new deployable, or a new caller -> callee edge between services.
 ---
 
 # Add a service

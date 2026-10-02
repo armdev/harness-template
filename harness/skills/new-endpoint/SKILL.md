@@ -1,6 +1,6 @@
 ---
 name: new-endpoint
-description: Add or change an HTTP endpoint in haytarar, contract first. Use for any task that changes what the public API (gateway) or an internal service accepts or returns.
+description: Add or change an HTTP endpoint in air-harness, contract first. Use for any task that changes what the public API (gateway) or an internal service accepts or returns.
 ---
 
 # Add or change an endpoint (contract first)

@@ -25,7 +25,7 @@ ENV GIT_OPTIONAL_LOCKS=0 \
     SEMGREP_ENABLE_VERSION_CHECK=0 \
     PYTHONDONTWRITEBYTECODE=1
 
-LABEL org.opencontainers.image.title="haytarar-harness" \
+LABEL org.opencontainers.image.title="air-harness-runner" \
       org.opencontainers.image.description="Guides + sensors runner for py-services-pg-kafka projects"
 
 WORKDIR /work

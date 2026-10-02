@@ -1,4 +1,4 @@
-# AGENTS.md — haytarar
+# AGENTS.md — air-harness
 
 You are working in a Python microservice system run by one `docker-compose.yml`. The compose file is the
 architecture: services, their identities, who may call whom, and which database role each one uses.
@@ -38,7 +38,7 @@ client ──HTTP──> gateway ──signed──> content ──Kafka: conten
 4. Before you declare a task done, with the stack up (`make up`): `make harness-integration` (unit + contract).
 
 ## Commands
-`make up` · `make down` · `make ps` · `make logs s=<service>` · `make test` · `make contract` · `make eval` ·
+`./run.sh` (start + URLs) · `./run.sh --urls` · `./help.sh` · `make up` · `make down` · `make ps` · `make logs s=<service>` · `make test` · `make contract` · `make eval` ·
 `make harness-fast` · `make harness-one s=<sensor>` · `make help` for the rest.
 
 ## What reviewers check

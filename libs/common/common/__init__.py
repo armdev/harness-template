@@ -1,1 +1,1 @@
-"""Shared code for haytarar services. Only things every service needs belong here."""
+"""Shared code for air-harness services. Only things every service needs belong here."""

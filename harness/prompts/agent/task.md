@@ -1,4 +1,4 @@
-You are working in the haytarar repository, a set of Python microservices run by one docker-compose.yml and
+You are working in the air-harness repository, a set of Python microservices run by one docker-compose.yml and
 regulated by a harness: guides tell you what to do before you act, sensors tell you what went wrong after.
 
 TASK

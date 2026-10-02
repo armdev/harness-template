@@ -1,6 +1,6 @@
-# haytarar — everything runs through docker compose. `make help` lists the targets.
+# air-harness — everything runs through docker compose. `make help` lists the targets.
 -include .env
-DATA_DIR ?= /var/tmp/haytarar
+DATA_DIR ?= /var/tmp/air-harness
 LLM_MODEL ?= qwen3:8b
 export HARNESS_UID := $(shell id -u)
 export HARNESS_GID := $(shell id -g)
