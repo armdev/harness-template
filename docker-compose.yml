@@ -1,11 +1,11 @@
-# haytarar — the compose file is the architecture: services, identities, who may call whom, database roles.
+# air-harness — the compose file is the architecture: services, identities, who may call whom, database roles.
 # `make up` starts the stack; `make harness-fast` checks this file (topology sensor) before anything runs.
 #
 # Call graph (signed, Ed25519):   gateway -> content, gateway -> search
 # Events (Kafka):                 content --content.post.created--> search
 # Data:                           postgres (content_svc, search_svc), kafka — both under DATA_DIR
 
-name: haytarar
+name: air-harness
 
 x-harness:                                  # read by harness/sensors/topology_check.py, ignored by compose
   alerts: infra/prometheus/alerts.yml       # T7: every application service has alert rules here
@@ -27,7 +27,7 @@ x-internal: &internal                       # reachable only inside the compose 
   expose: ["8000"]
 
 x-db-env: &db-env
-  POSTGRES_DB: ${POSTGRES_DB:-haytarar}     # application database name
+  POSTGRES_DB: ${POSTGRES_DB:-air_harness}     # application database name
 
 services:
   # ------------------------------------------------------------------ one-shots
@@ -35,11 +35,11 @@ services:
     image: busybox:${BUSYBOX_TAG:-1.37}     # busybox image tag
     command: ["sh", "-c", "mkdir -p /data/postgres /data/kafka && chown -R 1000:1000 /data/kafka"]
     volumes:
-      - ${DATA_DIR:-/var/tmp/haytarar}:/data  # persistent data root, outside the repository
+      - ${DATA_DIR:-/var/tmp/air-harness}:/data  # persistent data root, outside the repository
 
   service-keys:                             # one Ed25519 identity per service; append new services to the list
     build: { context: ., dockerfile: libs/common/Dockerfile }
-    image: haytarar/service-keys:${APP_TAG:-dev}   # tag of locally built application images
+    image: air-harness/service-keys:${APP_TAG:-dev}   # tag of locally built application images
     user: "0:0"                             # chowns each private key to the service uid (10001)
     entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search"]
     volumes:
@@ -49,7 +49,7 @@ services:
     image: flyway/flyway:${FLYWAY_TAG:-11.12-alpine}   # Flyway image tag
     command: ["migrate"]
     environment:
-      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-haytarar}
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-air_harness}
       FLYWAY_USER: postgres
       FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-postgres-dev}
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
@@ -86,7 +86,7 @@ services:
       <<: *db-env
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres-dev}   # superuser; used only by migrate
     volumes:
-      - ${DATA_DIR:-/var/tmp/haytarar}/postgres:/var/lib/postgresql/data
+      - ${DATA_DIR:-/var/tmp/air-harness}/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d $${POSTGRES_DB}"]
       interval: 3s
@@ -114,7 +114,7 @@ services:
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx512m -Xms256m}   # broker JVM heap
     volumes:
-      - ${DATA_DIR:-/var/tmp/haytarar}/kafka:/var/lib/kafka/data
+      - ${DATA_DIR:-/var/tmp/air-harness}/kafka:/var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
       interval: 5s
@@ -127,7 +127,7 @@ services:
   gateway:                                  # public API; no data of its own
     <<: [*py, *internal]
     build: { context: ., dockerfile: services/gateway/Dockerfile }
-    image: haytarar/gateway:${APP_TAG:-dev}
+    image: air-harness/gateway:${APP_TAG:-dev}
     ports: ["${GATEWAY_PORT:-8080}:8000"]   # host port of the public API
     environment:
       <<: *py-env
@@ -145,12 +145,12 @@ services:
   content:                                  # owns posts; publishes content.post.created
     <<: [*py, *internal]
     build: { context: ., dockerfile: services/content/Dockerfile }
-    image: haytarar/content:${APP_TAG:-dev}
+    image: air-harness/content:${APP_TAG:-dev}
     environment:
       <<: *py-env
       SERVICE_NAME: content
       TRUSTED_CALLERS: gateway
-      DB_DSN: postgresql://content_svc:${CONTENT_DB_PASSWORD:-content-dev}@postgres:5432/${POSTGRES_DB:-haytarar}
+      DB_DSN: postgresql://content_svc:${CONTENT_DB_PASSWORD:-content-dev}@postgres:5432/${POSTGRES_DB:-air_harness}
       KAFKA_BOOTSTRAP: kafka:9092
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: content } }
@@ -163,12 +163,12 @@ services:
   search:                                   # full-text search; indexes content.post.created
     <<: [*py, *internal]
     build: { context: ., dockerfile: services/search/Dockerfile }
-    image: haytarar/search:${APP_TAG:-dev}
+    image: air-harness/search:${APP_TAG:-dev}
     environment:
       <<: *py-env
       SERVICE_NAME: search
       TRUSTED_CALLERS: gateway
-      DB_DSN: postgresql://search_svc:${SEARCH_DB_PASSWORD:-search-dev}@postgres:5432/${POSTGRES_DB:-haytarar}
+      DB_DSN: postgresql://search_svc:${SEARCH_DB_PASSWORD:-search-dev}@postgres:5432/${POSTGRES_DB:-air_harness}
       KAFKA_BOOTSTRAP: kafka:9092
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: search } }
@@ -191,11 +191,11 @@ services:
     profiles: [local-llm]
     ports: ["${OLLAMA_PORT:-11434}:11434"]   # host port of the local LLM API
     volumes:
-      - ${DATA_DIR:-/var/tmp/haytarar}/ollama:/root/.ollama
+      - ${DATA_DIR:-/var/tmp/air-harness}/ollama:/root/.ollama
 
   contract:                                 # the specification: make contract (stack must be up)
     build: { context: ., dockerfile: tools/Dockerfile }
-    image: haytarar/tools:${APP_TAG:-dev}
+    image: air-harness/tools:${APP_TAG:-dev}
     profiles: [tools]
     working_dir: /repo
     command: ["pytest", "-q", "-p", "no:cacheprovider", "contract"]
@@ -207,7 +207,7 @@ services:
 
   unit:                                     # unit tests of libs/ and services/: make test
     build: { context: ., dockerfile: tools/Dockerfile }
-    image: haytarar/tools:${APP_TAG:-dev}
+    image: air-harness/tools:${APP_TAG:-dev}
     profiles: [tools]
     working_dir: /repo
     command: ["pytest", "-q", "-p", "no:cacheprovider", "libs/common/tests"]
@@ -219,7 +219,7 @@ services:
 
   eval:                                     # search quality: make eval (stack must be up)
     build: { context: ., dockerfile: tools/Dockerfile }
-    image: haytarar/tools:${APP_TAG:-dev}
+    image: air-harness/tools:${APP_TAG:-dev}
     profiles: [tools]
     user: "${HARNESS_UID:-1000}:${HARNESS_GID:-1000}"
     working_dir: /repo

@@ -6,8 +6,9 @@ import os
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import HTTPException, Query, Request, Response
+from fastapi import Body, HTTPException, Query, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import RedirectResponse
 
 from common.service_auth import SignedClient
 from common.telemetry import create_app
@@ -25,7 +26,11 @@ async def lifespan(_app):
         c.close()
 
 
-app = create_app("gateway", lifespan=lifespan)
+app = create_app("gateway", lifespan=lifespan, description=(
+    "Public API of air-harness. Every call is forwarded, signed as `gateway`, to the service that owns the data. "
+    "The contract suite in `contract/` is the specification of this API."))
+
+POST_EXAMPLE = {"title": "Hello air-harness", "body": "My first post, searchable in a second.", "author": "me"}
 
 
 async def forward(service: str, method: str, path: str, **kw) -> Response:
@@ -38,18 +43,22 @@ async def forward(service: str, method: str, path: str, **kw) -> Response:
                     media_type=r.headers.get("content-type", "application/json"))
 
 
-@app.post("/api/posts", status_code=201)
-async def create_post(request: Request) -> Response:
-    return await forward("content", "POST", "/posts", content=await request.body(),
-                         headers={"Content-Type": "application/json"})
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse("/docs")
 
 
-@app.get("/api/posts/{post_id}")
+@app.post("/api/posts", status_code=201, summary="Create a post (validated and stored by content)")
+async def create_post(post: dict = Body(examples=[POST_EXAMPLE])) -> Response:  # noqa: B008 — FastAPI idiom
+    return await forward("content", "POST", "/posts", json=post)
+
+
+@app.get("/api/posts/{post_id}", summary="Read a post")
 async def get_post(post_id: int) -> Response:
     return await forward("content", "GET", f"/posts/{post_id}")
 
 
-@app.get("/api/search")
+@app.get("/api/search", summary="Full-text search over posts (indexed asynchronously via Kafka)")
 async def search(q: str = Query(min_length=1, max_length=200), author: str | None = None,
                  limit: int = Query(10, ge=1, le=50)) -> Response:
     params = {"q": q, "limit": limit} | ({"author": author} if author else {})

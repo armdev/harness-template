@@ -1,6 +1,6 @@
 ---
 name: db-migration
-description: Change the haytarar database schema with a Flyway migration (new table, column, index, role or grant). Use whenever a task needs DDL or a new database role.
+description: Change the air-harness database schema with a Flyway migration (new table, column, index, role or grant). Use whenever a task needs DDL or a new database role.
 ---
 
 # Change the schema
@@ -24,4 +24,4 @@ Services connect as `<name>_svc` roles that own nothing and cannot run DDL (semg
    variable in the service's `DB_DSN`, and `<NAME>_DB_PASSWORD` to `.env.example`.
 6. **Verify**: `make harness-fast` (migrations sensor), then `make up` — `migrate` exits 0 — and `make contract`.
 
-Inspect the live schema: `docker compose exec postgres psql -U postgres -d haytarar -c '\dt content.*'`.
+Inspect the live schema: `docker compose exec postgres psql -U postgres -d air_harness -c '\dt content.*'`.

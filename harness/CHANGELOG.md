@@ -2,6 +2,18 @@
 
 ## 0.2.0
 
+Product name: **air-harness** (was haytarar). Images `air-harness/*`, runner image `air-harness-runner`,
+compose project `air-harness`, database `air_harness`, default `DATA_DIR=/var/tmp/air-harness`.
+
+- `run.sh`: one command to run the product — preflight, build + start, smoke test through the public API,
+  optional harness stages (`--check`, `--full`), local LLM (`--llm`), then every accessible URL and next steps.
+  `--urls` and `--down` for a running stack. CI runs `./run.sh --full`.
+- `help.sh`: the guide in the terminal (run, commands, urls, harness, agent, prompts, config, troubleshoot) and
+  `help.sh prompt <n>` to print a prompt ready to paste or pipe into an agent.
+- Next-step prompts `harness/prompts/next-steps/01..08`: explore, first endpoint, schema change, new service,
+  fix RED, review, ship, improve the harness.
+- Gateway: `/` redirects to the API docs; documented request body with an example.
+
 First version that runs end to end: `make up` starts a reference system and every sensor has something real
 to observe.
 

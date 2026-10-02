@@ -1,6 +1,6 @@
 ---
 name: new-topic
-description: Add a Kafka topic, producer or consumer to haytarar. Use whenever a task publishes or consumes an event between services.
+description: Add a Kafka topic, producer or consumer to air-harness. Use whenever a task publishes or consumes an event between services.
 ---
 
 # Add an event

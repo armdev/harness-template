@@ -18,13 +18,17 @@ jobs:
     timeout-minutes: 40
     env:
       MIGRATIONS_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
-      DATA_DIR: ${{ runner.temp }}/haytarar-data
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
       - name: Host plane prerequisites
-        run: pip install pyyaml==6.0.3
+        run: |
+          pip install pyyaml==6.0.3
+          echo "DATA_DIR=$RUNNER_TEMP/air-harness-data" >> "$GITHUB_ENV"   # persistent data outside the checkout
 
       - name: Build runner image
         run: make harness-build
@@ -42,13 +46,9 @@ jobs:
         if: github.event_name == 'schedule'
         run: make harness-continuous
 
-      - name: Start the stack
+      - name: Run the product end to end (stack, smoke test, all stages, URLs)
         if: github.event_name != 'schedule'
-        run: make up
-
-      - name: Pipeline stage (static + unit, contract, eval, prom-rules)
-        if: github.event_name != 'schedule'
-        run: make harness-pipeline
+        run: ./run.sh --full
 
       - name: Report
         if: always()
