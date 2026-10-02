@@ -398,4 +398,4 @@ pull request и `HEAD~1` для push.
 | `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.2.0, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
-Назад к [оглавлению документации](../README.md).
+Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).

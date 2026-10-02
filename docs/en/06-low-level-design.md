@@ -394,4 +394,4 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.2.0, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | host name printed by `run.sh` |
 
-Back to the [documentation index](../README.md).
+Next: [Demo](07-demo.md) · back to the [documentation index](../README.md).

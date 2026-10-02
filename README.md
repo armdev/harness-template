@@ -7,8 +7,12 @@ so every guide and sensor works on running code from the first command.
 
 > Guides steer before the act; sensors correct after it.
 
+![air-harness demo: run, API, observability, a RED report, the Stop hook, GREEN, prompts](docs/assets/demo-en.gif)
+
+*A 46-second walkthrough of a real run — more in the [demo page](docs/en/07-demo.md) ([по-русски](docs/ru/07-demo.md)).*
+
 **Documentation:** [docs/](docs/README.md) — what a harness is, how to use it, use cases, architecture,
-components and low-level design, in [English](docs/en/01-what-is-a-harness.md) and
+components, low-level design and a demo, in [English](docs/en/01-what-is-a-harness.md) and
 [Russian](docs/ru/01-what-is-a-harness.md).
 
 ## 1. Run it

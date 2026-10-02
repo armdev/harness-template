@@ -1,0 +1,95 @@
+# 7. Демо — скриншоты и обзор
+
+Всё на этой странице снято с реального запуска продукта: чистый `./run.sh --full` на Docker 29 / Compose v5,
+настоящий API в браузере, настоящий Prometheus и намеренная ошибка, отданная harness. Ничего не подделано.
+
+## Обзор (46 с)
+
+![демо air-harness: запуск, API, наблюдаемость, RED-отчёт, Stop-хук, GREEN, промпты](../assets/demo-ru.gif)
+
+1. `./run.sh` поднимает стенд и делает smoke-тест · 2. `--full` прогоняет все стадии harness · 3. выводит все
+адреса · 4–6. публичный API в Swagger UI: создать пост, найти его поиском · 7–8. Prometheus опрашивает все
+сервисы · 9–11. агент добавляет сервис и SQL-запрос через f-string → RED-отчёт → Stop-хук возвращает его к
+работе · 12. после исправления быстрый цикл GREEN · 13. пошаговые промпты для следующего шага.
+
+Подписи к скриншотам ниже — на русском; сами экраны (терминал, Swagger, Prometheus) — на английском, как и в
+продукте.
+
+## 1. Запуск — `./run.sh --full`
+
+**Проверка окружения, сборка, старт, smoke-тест.** Все сервисы healthy, затем пост создаётся, читается и
+находится поиском через Kafka.
+
+![run.sh: проверка, старт, smoke-тест](../assets/terminal-run-start.png)
+
+**Harness доказывает себя, затем проверяет код.** Засеянные дефекты срабатывают, чистые фикстуры молчат, затем
+идут стадии pre-commit, integration и pipeline. Агент-ревьюер здесь BLIND, потому что LLM не настроена — он
+рекомендательный и никогда не блокирует.
+
+![run.sh: selftest и все стадии GREEN](../assets/terminal-run-harness.png)
+
+**Где что находится.** Все доступные адреса, как попасть во внутренние сервисы, отчёты и следующие шаги.
+
+![run.sh: адреса и следующие шаги](../assets/terminal-run-urls.png)
+
+## 2. API — http://localhost:8080
+
+Корень перенаправляет на Swagger UI. Gateway — единственный публичный сервис; все вызовы за ним подписаны.
+
+![Обзор Swagger UI](../assets/swagger-overview.png)
+
+| Создание поста (201) | Поиск находит его (индексация через Kafka) |
+|---|---|
+| ![POST /api/posts → 201](../assets/swagger-create-post.png) | ![GET /api/search → 200](../assets/swagger-search.png) |
+
+ReDoc по адресу `/redoc`:
+
+![ReDoc](../assets/redoc.png)
+
+## 3. Наблюдаемость — http://localhost:9090
+
+| Все сервисы опрашиваются и UP | Правила алертов на сервис (их требует topology T7) |
+|---|---|
+| ![Цели Prometheus](../assets/prometheus-targets.png) | ![Алерты Prometheus](../assets/prometheus-alerts.png) |
+
+Частота запросов по сервисам и статусам (`sum by (job, status) (rate(http_requests_total[1m]))`) — коды 422 —
+это ошибки валидации, которые генератор трафика отправлял намеренно:
+
+![График Prometheus](../assets/prometheus-graph.png)
+
+## 4. Harness ловит ошибку агента
+
+Сценарий: агент добавляет сервис `notify`, который вызывает `content`, и собирает SQL-запрос через f-string. Он
+забывает про `TRUSTED_CALLERS`, ключ сервиса, правила алертов и новую переменную в `.env.example`.
+
+**Статические сенсоры становятся RED** за секунды, без сети:
+
+![make harness-static: RED](../assets/terminal-harness-static-red.png)
+
+**Отчёт точно говорит, что не так и как исправить** — каждое замечание называет ключ compose, гайд, который учит
+правилу, и команду для перезапуска только этого сенсора:
+
+![.harness/report.md RED](../assets/report-red.png)
+
+**Агент не может объявить «готово».** Stop-хук Claude Code запускает статические сенсоры на незакоммиченных
+изменениях и завершается с кодом 2 и отчётом — агент возвращается к работе:
+
+![Stop-хук](../assets/terminal-stop-hook.png)
+
+**После исправления** быстрый цикл снова GREEN:
+
+| `make harness-fast` | `.harness/report.md` |
+|---|---|
+| ![make harness-fast GREEN](../assets/terminal-harness-fast-green.png) | ![отчёт GREEN](../assets/report-green.png) |
+
+## 5. Изучить и передать агенту — `./help.sh`
+
+| `./help.sh` | `./help.sh prompts` |
+|---|---|
+| ![help.sh](../assets/terminal-help.png) | ![help.sh prompts](../assets/terminal-prompts.png) |
+
+`./help.sh prompt 02` выводит готовый к вставке промпт (`claude "$(./help.sh prompt 02)"`):
+
+![help.sh prompt 02](../assets/terminal-prompt-02.png)
+
+Назад к [оглавлению документации](../README.md) · предыдущая: [Низкоуровневый дизайн](06-low-level-design.md)

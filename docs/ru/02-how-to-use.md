@@ -33,6 +33,8 @@
 | http://localhost:9090 · `/targets` · `/alerts` | Prometheus |
 | http://localhost:11434/v1 | локальная LLM (с `--llm`) |
 
+![run.sh выводит все адреса и следующие шаги](../assets/terminal-run-urls.png)
+
 У внутренних сервисов (`content`, `search`, PostgreSQL, Kafka) намеренно нет порта на хосте; `run.sh` выводит
 команду для доступа к каждому (например, `docker compose exec postgres psql -U postgres -d air_harness`).
 
@@ -161,6 +163,6 @@ REVIEW_MODEL=a-stronger-model           # опционально: ревью б�
 | плоскости host нужен PyYAML | `pip install pyyaml` |
 | начать с нуля | `make purge`, затем `./run.sh` |
 
-`./help.sh troubleshoot` выводит тот же список.
+`./help.sh troubleshoot` выводит тот же список. Скриншоты каждого шага: [Демо](07-demo.md).
 
 Далее: [Сценарии использования](03-use-cases.md)
