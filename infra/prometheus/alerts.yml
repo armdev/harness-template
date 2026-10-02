@@ -1,0 +1,62 @@
+# Alert rules are code: every service gets up / error-rate / latency rules (topology sensor T7 checks it).
+groups:
+  - name: gateway
+    rules:
+      - alert: GatewayDown
+        expr: up{job="gateway"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "gateway is not being scraped" }
+      - alert: GatewayHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="gateway",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="gateway"}[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "gateway: more than 5% of requests fail" }
+      - alert: GatewayHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="gateway"}[5m]))) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "gateway: p95 latency above 500 ms" }
+  - name: content
+    rules:
+      - alert: ContentDown
+        expr: up{job="content"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "content is not being scraped" }
+      - alert: ContentHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="content",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="content"}[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "content: more than 5% of requests fail" }
+      - alert: ContentHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="content"}[5m]))) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "content: p95 latency above 500 ms" }
+  - name: search
+    rules:
+      - alert: SearchDown
+        expr: up{job="search"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "search is not being scraped" }
+      - alert: SearchHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="search",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="search"}[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "search: more than 5% of requests fail" }
+      - alert: SearchHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="search"}[5m]))) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "search: p95 latency above 500 ms" }

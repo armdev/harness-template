@@ -1,0 +1,72 @@
+name: harness
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * *"          # nightly: continuous stage (dead code, vulnerable dependencies)
+  workflow_dispatch:
+
+concurrency:
+  group: harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      MIGRATIONS_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+      DATA_DIR: ${{ runner.temp }}/haytarar-data
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Host plane prerequisites
+        run: pip install pyyaml==6.0.3
+
+      - name: Build runner image
+        run: make harness-build
+
+      - name: The harness tests itself
+        run: |
+          make harness-test
+          make harness-coverage
+          make harness-selftest
+
+      - name: Static sensors (blocking)
+        run: make harness-static
+
+      - name: Continuous stage (nightly only, advisory)
+        if: github.event_name == 'schedule'
+        run: make harness-continuous
+
+      - name: Start the stack
+        if: github.event_name != 'schedule'
+        run: make up
+
+      - name: Pipeline stage (static + unit, contract, eval, prom-rules)
+        if: github.event_name != 'schedule'
+        run: make harness-pipeline
+
+      - name: Report
+        if: always()
+        run: |
+          [ -f .harness/report.md ] && cat .harness/report.md >> "$GITHUB_STEP_SUMMARY" || true
+          [ -f .harness/eval-report.md ] && cat .harness/eval-report.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: harness-report
+          path: .harness/
+          if-no-files-found: ignore
+
+      - name: Stop the stack
+        if: always()
+        run: make clean

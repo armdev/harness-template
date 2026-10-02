@@ -1,0 +1,8 @@
+{
+  "corpus": "v1",
+  "metrics": {
+    "recall@5": 0.875,
+    "mrr@10": 1.0
+  },
+  "note": "Initial baseline: Postgres full-text (english), title weight A, body weight B."
+}

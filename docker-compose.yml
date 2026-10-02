@@ -1,0 +1,241 @@
+# haytarar — the compose file is the architecture: services, identities, who may call whom, database roles.
+# `make up` starts the stack; `make harness-fast` checks this file (topology sensor) before anything runs.
+#
+# Call graph (signed, Ed25519):   gateway -> content, gateway -> search
+# Events (Kafka):                 content --content.post.created--> search
+# Data:                           postgres (content_svc, search_svc), kafka — both under DATA_DIR
+
+name: haytarar
+
+x-harness:                                  # read by harness/sensors/topology_check.py, ignored by compose
+  alerts: infra/prometheus/alerts.yml       # T7: every application service has alert rules here
+  env_example: .env.example                 # T8: every ${VAR} used below is documented here
+
+x-py: &py                                   # every Python service: same runtime contract
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  environment: &py-env
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}           # root log level of every Python service
+    KEYS_DIR: /run/keys
+  depends_on:                               # an explicit depends_on in a service REPLACES this one
+    service-keys: { condition: service_completed_successfully }
+
+x-internal: &internal                       # reachable only inside the compose network
+  expose: ["8000"]
+
+x-db-env: &db-env
+  POSTGRES_DB: ${POSTGRES_DB:-haytarar}     # application database name
+
+services:
+  # ------------------------------------------------------------------ one-shots
+  storage-init:                             # prepares DATA_DIR subdirectories with the owners the images expect
+    image: busybox:${BUSYBOX_TAG:-1.37}     # busybox image tag
+    command: ["sh", "-c", "mkdir -p /data/postgres /data/kafka && chown -R 1000:1000 /data/kafka"]
+    volumes:
+      - ${DATA_DIR:-/var/tmp/haytarar}:/data  # persistent data root, outside the repository
+
+  service-keys:                             # one Ed25519 identity per service; append new services to the list
+    build: { context: ., dockerfile: libs/common/Dockerfile }
+    image: haytarar/service-keys:${APP_TAG:-dev}   # tag of locally built application images
+    user: "0:0"                             # chowns each private key to the service uid (10001)
+    entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search"]
+    volumes:
+      - service-keys:/keys
+
+  migrate:                                  # Flyway: the only writer of schema; services own no DDL
+    image: flyway/flyway:${FLYWAY_TAG:-11.12-alpine}   # Flyway image tag
+    command: ["migrate"]
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-haytarar}
+      FLYWAY_USER: postgres
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-postgres-dev}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CONNECT_RETRIES: "30"
+      FLYWAY_PLACEHOLDERS_CONTENT_DB_PASSWORD: ${CONTENT_DB_PASSWORD:-content-dev}
+      FLYWAY_PLACEHOLDERS_SEARCH_DB_PASSWORD: ${SEARCH_DB_PASSWORD:-search-dev}
+    volumes:
+      - ./db/migrations:/flyway/sql:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  kafka-init:                               # topics are created here and nowhere else (auto-create is off)
+    image: apache/kafka:${KAFKA_TAG:-3.9.1}  # Kafka image tag (broker and CLI)
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        for spec in $$TOPICS; do
+          name=$${spec%%:*}; parts=$${spec##*:}
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists \
+            --topic "$$name" --partitions "$$parts" --replication-factor 1
+        done
+    environment:
+      TOPICS: >-
+        content.post.created:3
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  # ------------------------------------------------------------------ infrastructure
+  postgres:
+    image: postgres:${POSTGRES_TAG:-17.6-alpine}   # PostgreSQL image tag
+    restart: unless-stopped
+    environment:
+      <<: *db-env
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres-dev}   # superuser; used only by migrate
+    volumes:
+      - ${DATA_DIR:-/var/tmp/haytarar}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      storage-init: { condition: service_completed_successfully }
+
+  kafka:
+    image: apache/kafka:${KAFKA_TAG:-3.9.1}
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xmx512m -Xms256m}   # broker JVM heap
+    volumes:
+      - ${DATA_DIR:-/var/tmp/haytarar}/kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+    depends_on:
+      storage-init: { condition: service_completed_successfully }
+
+  # ------------------------------------------------------------------ application
+  gateway:                                  # public API; no data of its own
+    <<: [*py, *internal]
+    build: { context: ., dockerfile: services/gateway/Dockerfile }
+    image: haytarar/gateway:${APP_TAG:-dev}
+    ports: ["${GATEWAY_PORT:-8080}:8000"]   # host port of the public API
+    environment:
+      <<: *py-env
+      SERVICE_NAME: gateway
+      CONTENT_URL: http://content:8000
+      SEARCH_URL: http://search:8000
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: gateway } }
+      - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
+    depends_on:
+      service-keys: { condition: service_completed_successfully }
+      content: { condition: service_healthy }
+      search: { condition: service_healthy }
+
+  content:                                  # owns posts; publishes content.post.created
+    <<: [*py, *internal]
+    build: { context: ., dockerfile: services/content/Dockerfile }
+    image: haytarar/content:${APP_TAG:-dev}
+    environment:
+      <<: *py-env
+      SERVICE_NAME: content
+      TRUSTED_CALLERS: gateway
+      DB_DSN: postgresql://content_svc:${CONTENT_DB_PASSWORD:-content-dev}@postgres:5432/${POSTGRES_DB:-haytarar}
+      KAFKA_BOOTSTRAP: kafka:9092
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: content } }
+      - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
+    depends_on:
+      service-keys: { condition: service_completed_successfully }
+      migrate: { condition: service_completed_successfully }
+      kafka-init: { condition: service_completed_successfully }
+
+  search:                                   # full-text search; indexes content.post.created
+    <<: [*py, *internal]
+    build: { context: ., dockerfile: services/search/Dockerfile }
+    image: haytarar/search:${APP_TAG:-dev}
+    environment:
+      <<: *py-env
+      SERVICE_NAME: search
+      TRUSTED_CALLERS: gateway
+      DB_DSN: postgresql://search_svc:${SEARCH_DB_PASSWORD:-search-dev}@postgres:5432/${POSTGRES_DB:-haytarar}
+      KAFKA_BOOTSTRAP: kafka:9092
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: search } }
+      - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
+    depends_on:
+      service-keys: { condition: service_completed_successfully }
+      migrate: { condition: service_completed_successfully }
+      kafka-init: { condition: service_completed_successfully }
+
+  # ------------------------------------------------------------------ optional profiles
+  prometheus:                               # make up-observability
+    image: prom/prometheus:${PROMETHEUS_TAG:-v3.6.0}   # Prometheus image tag (also used by the prom-rules sensor)
+    profiles: [observability]
+    ports: ["${PROMETHEUS_PORT:-9090}:9090"]   # host port of the Prometheus UI
+    volumes:
+      - ./infra/prometheus:/etc/prometheus:ro
+
+  ollama:                                   # local OpenAI-compatible LLM for the review agent: make llm
+    image: ollama/ollama:${OLLAMA_TAG:-0.12.3}   # Ollama image tag
+    profiles: [local-llm]
+    ports: ["${OLLAMA_PORT:-11434}:11434"]   # host port of the local LLM API
+    volumes:
+      - ${DATA_DIR:-/var/tmp/haytarar}/ollama:/root/.ollama
+
+  contract:                                 # the specification: make contract (stack must be up)
+    build: { context: ., dockerfile: tools/Dockerfile }
+    image: haytarar/tools:${APP_TAG:-dev}
+    profiles: [tools]
+    working_dir: /repo
+    command: ["pytest", "-q", "-p", "no:cacheprovider", "contract"]
+    environment:
+      GATEWAY_URL: http://gateway:8000
+      CONTENT_URL: http://content:8000      # used only to prove unsigned calls are rejected
+    volumes:
+      - ./contract:/repo/contract:ro
+
+  unit:                                     # unit tests of libs/ and services/: make test
+    build: { context: ., dockerfile: tools/Dockerfile }
+    image: haytarar/tools:${APP_TAG:-dev}
+    profiles: [tools]
+    working_dir: /repo
+    command: ["pytest", "-q", "-p", "no:cacheprovider", "libs/common/tests"]
+    environment:
+      PYTHONPATH: /repo/libs/common         # test the mounted source, not the copy baked into the image
+    volumes:
+      - ./libs:/repo/libs:ro
+    network_mode: none
+
+  eval:                                     # search quality: make eval (stack must be up)
+    build: { context: ., dockerfile: tools/Dockerfile }
+    image: haytarar/tools:${APP_TAG:-dev}
+    profiles: [tools]
+    user: "${HARNESS_UID:-1000}:${HARNESS_GID:-1000}"
+    working_dir: /repo
+    command: ["python", "eval/run_eval.py"]
+    environment:
+      GATEWAY_URL: http://gateway:8000
+      EVAL_OUT: /out
+      EVAL_TOLERANCE: ${EVAL_TOLERANCE:-0.05}   # allowed metric drop against eval/baseline.json
+      JUDGE_BASE_URL: ${JUDGE_BASE_URL:-}       # OpenAI-compatible endpoint for the LLM judge; empty = skip judge
+      JUDGE_MODEL: ${JUDGE_MODEL:-qwen3:8b}     # model used by the judge
+      JUDGE_API_KEY: ${JUDGE_API_KEY:-not-needed}   # API key for the judge endpoint
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - ./eval:/repo/eval:ro
+      - ./harness/prompts:/repo/harness/prompts:ro
+      - ./.harness:/out
+
+volumes:
+  service-keys:

@@ -4,7 +4,7 @@
 harness: 1
 template:
   name: py-services-pg-kafka          # the topology this harness regulates (variety reduction)
-  version: 0.1.0                      # projects pin this; upgrades arrive as a new runner image + manifest diff
+  version: 0.2.0                      # projects pin this; upgrades arrive as a new runner image + manifest diff
 
 categories: [maintainability, architecture, behaviour]
 
@@ -13,6 +13,7 @@ categories: [maintainability, architecture, behaviour]
 #   live   — harness container on the project network (needs the LLM or the running stack)
 #   host   — the developer machine / CI agent, through make and docker compose
 # Stages: when it runs (keep quality left). pre-commit < integration < pipeline < continuous.
+# Sensor output convention: one finding per line starting with ERROR or WARN, then indented `what:` / `fix:`.
 
 guides:
   - id: agents-md
@@ -23,14 +24,42 @@ guides:
     path: harness/skills/new-service/SKILL.md
     kind: inferential
     category: [architecture]
+  - id: skill-new-endpoint
+    path: harness/skills/new-endpoint/SKILL.md
+    kind: inferential
+    category: [behaviour, architecture]
+  - id: skill-db-migration
+    path: harness/skills/db-migration/SKILL.md
+    kind: inferential
+    category: [architecture]
+  - id: skill-new-topic
+    path: harness/skills/new-topic/SKILL.md
+    kind: inferential
+    category: [architecture]
+  - id: skill-harness-report         # how to act on the report: the loop the agent lives in
+    path: harness/skills/harness-report/SKILL.md
+    kind: inferential
+    category: [maintainability, architecture, behaviour]
+  - id: skill-harness-steer          # for the humans (and agents) who maintain the harness itself
+    path: harness/skills/harness-steer/SKILL.md
+    kind: inferential
+    category: [maintainability]
+  - id: prompts                       # system prompts of inferential sensors + agent task templates
+    path: harness/prompts
+    kind: inferential
+    category: [maintainability, behaviour]
   - id: review-rubric                 # one rubric, read by the coding agent (forward) and the reviewer (back)
     path: harness/review/RUBRIC.md
     kind: inferential
-    category: [maintainability]
+    category: [maintainability, behaviour]
   - id: semgrep-rules                 # rule messages double as instructions
     path: harness/rules/semgrep
     kind: computational
-    category: [architecture]
+    category: [architecture, maintainability]
+  - id: contract-readme
+    path: contract/README.md
+    kind: inferential
+    category: [behaviour]
   - id: eval-readme
     path: eval/README.md
     kind: inferential
@@ -44,11 +73,24 @@ sensors:
     stages: [pre-commit, pipeline]
     blocking: true
     run: python harness/sensors/topology_check.py docker-compose.yml
-    pairs_with: [skill-new-service, agents-md]
+    pairs_with: [skill-new-service, skill-new-topic, agents-md]
     fix_hint: Each finding names the compose key to change. Fix compose, not code, unless the finding says otherwise.
     selftest:
       fixtures: harness/sensors/fixtures/topology
-      run: python harness/sensors/topology_check.py {fixture}
+      run: python harness/sensors/topology_check.py --strict {fixture}
+
+  - id: migrations
+    kind: computational
+    category: architecture
+    plane: static
+    stages: [pre-commit, pipeline]
+    blocking: true
+    run: python harness/sensors/migrations_check.py db/migrations
+    pairs_with: [skill-db-migration, agents-md]
+    fix_hint: Migrations are append-only history. Never edit a committed V-file; add V<next>__<name>.sql with its GRANTs.
+    selftest:
+      fixtures: harness/sensors/fixtures/migrations
+      run: MIGRATIONS_BASE=none python harness/sensors/migrations_check.py --strict {fixture}
 
   - id: ruff
     kind: computational
@@ -56,9 +98,12 @@ sensors:
     plane: static
     stages: [pre-commit, pipeline]
     blocking: true
-    run: ruff check --output-format=concise services libs
+    run: ruff check --output-format=concise services libs contract eval
     pairs_with: [agents-md]
     fix_hint: Run `ruff check --fix` for autofixable rules; do not add noqa without a reason in the same line.
+    selftest:
+      fixtures: harness/sensors/fixtures/ruff
+      run: ruff check --no-cache --output-format=concise {fixture}
 
   - id: semgrep-local
     kind: computational
@@ -67,7 +112,7 @@ sensors:
     stages: [pre-commit, pipeline]
     blocking: true
     run: semgrep scan --config harness/rules/semgrep --error --metrics=off --disable-version-check --quiet --emacs services libs
-    pairs_with: [semgrep-rules]
+    pairs_with: [semgrep-rules, skill-new-service]
     selftest:
       fixtures: harness/sensors/fixtures/semgrep/services   # under services/ so path-scoped rules apply
       run: semgrep scan --config harness/rules/semgrep --error --metrics=off --disable-version-check --quiet --emacs {fixture}
@@ -80,8 +125,18 @@ sensors:
     stages: [pre-commit]
     blocking: false                   # inferential sensors advise until their precision is measured
     run: python harness/sensors/review.py
-    pairs_with: [review-rubric]
+    pairs_with: [review-rubric, prompts]
     fix_hint: Address ERROR findings or reply in the commit message why the finding is wrong (feeds the rubric).
+
+  - id: unit
+    kind: computational
+    category: behaviour
+    plane: host
+    stages: [integration, pipeline]
+    blocking: true
+    run: make -s test
+    pairs_with: [agents-md]
+    fix_hint: Unit tests live next to the code (libs/common/tests). Fix the code; change a test only with the behaviour.
 
   - id: contract
     kind: computational
@@ -89,19 +144,9 @@ sensors:
     plane: host
     stages: [integration, pipeline]
     blocking: true
-    run: make contract
-    pairs_with: [agents-md]
+    run: make -s contract
+    pairs_with: [contract-readme, skill-new-endpoint, agents-md]
     fix_hint: The contract suite is the spec. Change the implementation; change a contract test only when the user asked for new behaviour.
-
-  - id: contract-java-parity          # IMPL=java must pass the same contract (same API, one switch)
-    kind: computational
-    category: behaviour
-    plane: host
-    stages: [pipeline]
-    blocking: true
-    run: IMPL=java make contract
-    pairs_with: [agents-md]
-    fix_hint: A Python-only change that breaks the Java implementation is incomplete; port it or flag it.
 
   - id: eval
     kind: inferential                 # IR metrics are computational; the judge (JUDGE_*) is inferential
@@ -109,9 +154,9 @@ sensors:
     plane: host
     stages: [pipeline]
     blocking: false                   # becomes blocking once a baseline and tolerance are agreed
-    run: make eval
-    pairs_with: [eval-readme]
-    fix_hint: Compare against the last baseline in eval/REPORT.md; explain any metric drop in the PR.
+    run: make -s eval
+    pairs_with: [eval-readme, prompts]
+    fix_hint: Read .harness/eval-report.md (weakest queries first); explain any metric drop in the PR or revert the ranking change.
 
   - id: prom-rules
     kind: computational
@@ -119,9 +164,9 @@ sensors:
     plane: host
     stages: [pipeline]
     blocking: true
-    run: docker run --rm -v "$PWD/infra/prometheus:/p:ro" --entrypoint promtool prom/prometheus:${PROMETHEUS_TAG:-v3.15.0} check rules /p/alerts.yml
-    pairs_with: [agents-md]
-    fix_hint: Alert rules are code; every new service needs its up/latency/error rules.
+    run: docker run --rm -v "$PWD/infra/prometheus:/p:ro" --entrypoint promtool prom/prometheus:${PROMETHEUS_TAG:-v3.6.0} check rules /p/alerts.yml
+    pairs_with: [skill-new-service]
+    fix_hint: Alert rules are code; every new service needs its up/latency/error rules (topology T7 checks presence, promtool syntax).
 
   - id: dead-code
     kind: computational
@@ -129,9 +174,12 @@ sensors:
     plane: static
     stages: [continuous]
     blocking: false
-    run: vulture services libs --min-confidence 80
+    run: vulture services libs harness/rules/vulture_whitelist.py --min-confidence 80
     pairs_with: [agents-md]
     fix_hint: Delete it or whitelist it in harness/rules/vulture_whitelist.py with the reason.
+    selftest:
+      fixtures: harness/sensors/fixtures/vulture
+      run: vulture --min-confidence 60 {fixture}
 
   - id: deps-audit
     kind: computational
@@ -140,7 +188,7 @@ sensors:
     stages: [continuous]
     blocking: false
     run: >-
-      sh -c 'rc=0; for f in $(find services libs -name "requirements*.txt"); do
+      sh -c 'rc=0; for f in $(find services libs tools -name "requirements*.txt"); do
       pip-audit --progress-spinner off -r "$f" || rc=1; done; exit $rc'
-    pairs_with: []
+    pairs_with: [agents-md]
     fix_hint: Bump the pinned version; if no fix exists, record the accepted risk with an expiry date.

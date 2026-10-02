@@ -1,0 +1,58 @@
+# Organisation rules. The message is written for the agent: what is wrong, what to write instead.
+rules:
+  - id: sql-built-from-strings
+    languages: [python]
+    severity: ERROR
+    message: >-
+      SQL text is built from strings. Pass values as parameters, e.g.
+      cur.execute("SELECT ... WHERE id = %s", (post_id,)). Dynamic identifiers go through psycopg.sql.Identifier.
+    pattern-either:
+      - pattern: $C.execute(f"...", ...)
+      - pattern: $C.execute("..." % $V, ...)
+      - pattern: $C.execute("...".format(...), ...)
+      - pattern: $C.execute("..." + $V, ...)
+
+  - id: tls-verification-disabled
+    languages: [python]
+    severity: ERROR
+    message: >-
+      TLS verification is disabled. Pass verify=<path to the CA bundle> (the dev CA lives in TLS_CERT_DIR);
+      never verify=False, not even in services that only talk inside the compose network.
+    pattern: $F(..., verify=False, ...)
+
+  - id: ddl-outside-migrations
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Schema change in application code. Every DDL statement goes into db/migrations as a Flyway migration
+      (V<n>__name.sql, or R__ for repeatable); services run with roles that should not own DDL.
+    pattern-either:
+      - pattern: $C.execute("=~/(?i)^\s*(create|alter|drop)\s+(table|index|schema|type|extension)/", ...)
+    paths:
+      include: [services/, libs/]
+      exclude: [eval/, "**/tests/**"]
+
+  - id: print-instead-of-logging
+    languages: [python]
+    severity: WARNING
+    message: >-
+      print() bypasses LOG_LEVEL and the trace ids that logging adds. Use the module logger
+      (log = logging.getLogger(__name__)).
+    pattern: print(...)
+    paths:
+      include: [services/]
+
+  - id: unsigned-service-call
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Raw HTTP client in a service. Calls to another service go through common.service_auth.SignedClient
+      (signed as SERVICE_NAME), e.g. SignedClient(os.environ["CONTENT_URL"]).get("/posts/1"), and the callee
+      lists this service in TRUSTED_CALLERS (docker-compose.yml). See harness/skills/new-service/SKILL.md.
+    pattern-either:
+      - pattern: httpx.$M(...)
+      - pattern: requests.$M(...)
+      - pattern: urllib.request.urlopen(...)
+    paths:
+      include: [services/]
+      exclude: ["**/tests/**"]

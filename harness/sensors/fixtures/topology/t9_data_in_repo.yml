@@ -1,0 +1,32 @@
+# expect: T9 data-outside-repo
+x-harness:
+  alerts: harness/sensors/fixtures/topology-data/alerts.yml
+  env_example: harness/sensors/fixtures/topology-data/env.example
+services:
+  service-keys:
+    image: keys:1.0
+    entrypoint: ["python", "-m", "common.keygen", "/keys", "api", "store"]
+  migrate:
+    image: flyway/flyway:11.12-alpine
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      STORE_URL: http://store:8000
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, volume: { subpath: api } }
+  store:
+    build: .
+    restart: unless-stopped
+    environment:
+      TRUSTED_CALLERS: api
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DB_DSN: postgresql://store_svc@postgres/db
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, volume: { subpath: store } }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+  db:
+    image: postgres:${STORE_TAG:-1.0}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
