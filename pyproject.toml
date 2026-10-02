@@ -1,0 +1,19 @@
+# Lint configuration for services/ and libs/ (the `ruff` sensor). Packages declare their own dependencies.
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["libs/common", "services/*"]
+extend-exclude = ["harness/sensors/fixtures"]   # seeded defects: wrong on purpose (selftest passes paths explicitly)
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE", "SIM"]
+ignore = [
+  "S101",   # assert is how pytest checks
+  "S104",   # services bind 0.0.0.0 inside their container on purpose
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S", "BLE"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["common"]

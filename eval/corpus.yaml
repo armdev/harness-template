@@ -1,0 +1,31 @@
+# Search evaluation set. Bump `version` whenever docs change: the corpus is seeded once per version
+# under author eval-<version>, so old and new corpora never mix.
+version: v1
+docs:
+  - { key: d01, title: "Signing service-to-service calls", body: "Every internal HTTP call is signed with an Ed25519 key. The callee verifies the signature and checks TRUSTED_CALLERS." }
+  - { key: d02, title: "Rotating service keys", body: "Keys are generated once by the service-keys one-shot. Delete the volume to rotate every identity." }
+  - { key: d03, title: "Writing a Flyway migration", body: "Schema changes are versioned SQL files in db/migrations. Never run DDL from application code." }
+  - { key: d04, title: "Database roles per service", body: "Each service connects with its own role, content_svc or search_svc, and is granted only the tables it needs." }
+  - { key: d05, title: "Creating Kafka topics", body: "Topics are created by kafka-init. Automatic topic creation is disabled on the broker." }
+  - { key: d06, title: "Consumer groups and offsets", body: "The search indexer commits its Kafka offset only after the database write succeeds, giving at-least-once delivery." }
+  - { key: d07, title: "Prometheus alert rules", body: "Every service needs alerts for being down, for error rate and for latency. Rules live in infra/prometheus." }
+  - { key: d08, title: "Structured JSON logging", body: "Services log JSON lines with a request id. Personal data such as e-mail addresses is never logged." }
+  - { key: d09, title: "Running the contract suite", body: "The contract tests are the specification of the public API. Start the stack, then run make contract." }
+  - { key: d10, title: "Local language model for review", body: "The review agent talks to an OpenAI-compatible endpoint such as Ollama running a small Qwen model." }
+  - { key: d11, title: "Persistent data directory", body: "PostgreSQL and Kafka store their data under DATA_DIR, outside the repository, so a clean checkout stays clean." }
+  - { key: d12, title: "Healthchecks and startup order", body: "Compose waits for migrate and kafka-init to complete before application services start." }
+
+# Each query lists the docs a reader would accept, most relevant first.
+queries:
+  - { q: "signed calls", relevant: [d01, d02] }
+  - { q: "rotate keys", relevant: [d02] }
+  - { q: "schema migration", relevant: [d03, d04] }
+  - { q: "database role", relevant: [d04] }
+  - { q: "kafka topic", relevant: [d05, d06] }
+  - { q: "offset commit", relevant: [d06] }
+  - { q: "alerts latency", relevant: [d07] }
+  - { q: "logging personal data", relevant: [d08] }
+  - { q: "contract tests", relevant: [d09] }
+  - { q: "language model", relevant: [d10] }
+  - { q: "data directory", relevant: [d11] }
+  - { q: "startup order", relevant: [d12] }

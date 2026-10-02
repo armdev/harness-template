@@ -1,12 +1,12 @@
-# Harness sensors as containers. Use as an overlay or pull it in with a top-level `include:`.
+# Harness sensors as containers. Use as an overlay (harness.mk does) or pull it in with a top-level `include:`.
 #   docker compose -f docker-compose.yml -f compose.harness.yml run --rm harness run --stage pre-commit
 # Two planes from one image:
 #   harness       static sensors: no network, read-only repo, no capabilities (the agent's code cannot phone home)
 #   harness-live  inferential + online sensors: project network, reaches the LLM and the running stack
 
-x-harness: &harness
+x-harness-svc: &harness
   build: { context: ., dockerfile: harness/Dockerfile }
-  image: ${HARNESS_IMAGE:-haytarar-harness:0.1.0}
+  image: ${HARNESS_IMAGE:-haytarar-harness:0.2.0}
   profiles: [harness]
   user: "${HARNESS_UID:-1000}:${HARNESS_GID:-1000}"    # report files owned by the developer, not root
   read_only: true
@@ -28,6 +28,7 @@ services:
       HARNESS_ROOT: /work
       HARNESS_OUT: /out
       HARNESS_TIMEOUT: ${HARNESS_TIMEOUT:-300}
+      MIGRATIONS_BASE: ${MIGRATIONS_BASE:-HEAD}          # CI: origin/main
 
   harness-live:
     <<: *harness
@@ -42,4 +43,4 @@ services:
       LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
       REVIEW_MODEL: ${REVIEW_MODEL:-}                    # a stronger model for review than for generation, if you have one
       LLM_NO_THINK: ${LLM_NO_THINK:-true}
-      REVIEW_DIFF_BASE: ${REVIEW_DIFF_BASE:-}            # empty = staged changes; CI: origin/main
+      REVIEW_DIFF_BASE: ${REVIEW_DIFF_BASE:-}            # empty = staged, else working tree; CI: origin/main

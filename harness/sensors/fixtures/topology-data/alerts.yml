@@ -1,0 +1,5 @@
+groups:
+  - name: fixture
+    rules:
+      - { alert: ApiDown, expr: 'up{job="api"} == 0' }
+      - { alert: StoreDown, expr: 'up{job="store"} == 0' }

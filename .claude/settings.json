@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(make harness-fast)",
+      "Bash(make harness-static)",
+      "Bash(make harness-one:*)",
+      "Bash(make harness-integration)",
+      "Bash(make harness-selftest)",
+      "Bash(make harness-coverage)",
+      "Bash(make harness-list)",
+      "Bash(make up)",
+      "Bash(make ps)",
+      "Bash(make test)",
+      "Bash(make contract)",
+      "Bash(make logs:*)",
+      "Read(.harness/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/harness/hooks/agent-stop.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

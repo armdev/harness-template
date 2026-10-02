@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Enable once per clone: git config core.hooksPath .githooks
+# Blocking static sensors only (hermetic, seconds). The advisory review runs in `make harness-fast`.
+exec make -s harness-static
