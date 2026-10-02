@@ -1,0 +1,161 @@
+# 2. How to use air-harness
+
+## 2.1 Requirements
+
+| Tool | Version | Used for |
+|---|---|---|
+| Docker Engine | 26+ | everything runs in containers (volume `subpath` needs 26+) |
+| Docker Compose | v2.24+ | the stack and the sensor containers |
+| GNU make, bash, curl | any | entry points, smoke test |
+| python3 + PyYAML | 3.11+ | only for the host-plane stages (`--check`, `--full`, `make harness-integration`) |
+
+Every setting has a default. To change one: `cp .env.example .env` and edit (`./help.sh config` lists them).
+
+## 2.2 Run it
+
+```bash
+./run.sh            # preflight → build + start → smoke test → every URL → next steps
+./run.sh --check    # … then the harness: selftest, fast loop, unit + contract suite
+./run.sh --full     # … --check plus the pipeline stage (search eval, alert rules) — what CI runs
+./run.sh --llm      # also start a local LLM (Ollama) for the review agent
+./run.sh --urls     # status and URLs of a running stack
+./run.sh --down     # stop (data in DATA_DIR is kept; `make purge` deletes it)
+```
+
+After `./run.sh` you get:
+
+| URL | What |
+|---|---|
+| http://localhost:8080 | public API (redirects to the docs) |
+| http://localhost:8080/docs · `/redoc` · `/openapi.json` | interactive API docs, schema |
+| http://localhost:8080/healthz · `/metrics` | gateway health, Prometheus metrics |
+| http://localhost:9090 · `/targets` · `/alerts` | Prometheus |
+| http://localhost:11434/v1 | local LLM (with `--llm`) |
+
+Internal services (`content`, `search`, PostgreSQL, Kafka) have no host port by design; `run.sh` prints the
+command to reach each one (e.g. `docker compose exec postgres psql -U postgres -d air_harness`).
+
+Try the API:
+
+```bash
+curl -s -XPOST localhost:8080/api/posts -H 'content-type: application/json' \
+     -d '{"title":"Hello","body":"First post","author":"me"}'
+curl -s localhost:8080/api/posts/1
+curl -s 'localhost:8080/api/search?q=hello'
+```
+
+## 2.3 The loop — what you and the agent do on every change
+
+```mermaid
+flowchart LR
+    A[edit] --> B[make harness-fast]
+    B --> C[read .harness/report.md]
+    C -->|RED| D["fix blocking failures first<br/>re-run only that sensor:<br/>make harness-one s=ID"]
+    D --> B
+    C -->|GREEN| E{done?}
+    E -->|no| A
+    E -->|yes| F["make up, then make harness-integration"]
+    F -->|GREEN| G[commit / PR]
+    F -->|RED| D
+```
+
+`.harness/report.md` starts with the verdict (**GREEN** / **RED**), then:
+
+1. **Blocking failures** — each with *How to fix*, the *Guides* that teach the rule, the sensor output, and the
+   exact command to *re-run only this* sensor.
+2. **Advisory findings** — judgement calls (review agent, eval).
+3. **Blind sensors** — harness problems (e.g. no LLM). Report them, do not work around them.
+4. **Warnings** — from sensors that passed.
+5. **Not run in this stage yet** and **Passed**. Results from an older commit are marked *stale*.
+
+## 2.4 Stages and make targets
+
+| Stage | Command | What runs | Budget |
+|---|---|---|---|
+| pre-commit | `make harness-fast` | topology, migrations, ruff, semgrep (blocking) + review agent (advisory) | < 1 min, no network |
+| | `make harness-static` | the blocking static part only (git hook, agent Stop hook) | seconds |
+| integration | `make harness-integration` | unit tests + contract suite against the running stack | minutes |
+| pipeline | `make harness-pipeline` | all of the above + search eval + alert-rule check | what CI runs |
+| continuous | `make harness-continuous` | dead code, vulnerable dependencies | nightly |
+
+Tools for trusting and steering the harness:
+
+| Command | Purpose |
+|---|---|
+| `make harness-selftest` | every sensor fires on its seeded defects and stays quiet on clean fixtures |
+| `make harness-coverage` | guide × sensor matrix: rules nobody checks, lessons nobody teaches, broken manifest entries |
+| `make harness-stats` | from the ledger: what fires often (weak guide), never fires, is blind |
+| `make harness-list` | every sensor with stage, plane, blocking flag, command |
+| `make harness-one s=<id>` | re-run one sensor (falls back to the live container if needed) |
+| `make harness-test` | lint + unit tests of the harness code itself |
+
+Product commands: `make up`, `make down`, `make ps`, `make logs s=<service>`, `make test`, `make contract`,
+`make eval`, `make llm`, `make clean`, `make purge`, `make help`.
+
+## 2.5 Working with a coding agent
+
+**Any agent.** The entry point is `AGENTS.md`. Skills in `harness/skills/<name>/SKILL.md` give step-by-step
+procedures; `harness/review/RUBRIC.md` is what the reviewer checks.
+
+**Next-step prompts.** Ready-to-paste prompts for the steps you will take, in order:
+
+```bash
+./help.sh prompts                               # list
+./help.sh prompt 01                             # print one (paste into any agent)
+claude "$(./help.sh prompt 01)"                 # Claude Code, interactive
+./help.sh prompt 02 | claude -p                 # Claude Code, headless
+./help.sh prompt task "Add rate limiting"       # generic task prompt with your task filled in
+./help.sh prompt fix-red                        # the current RED report wrapped in a fix-only prompt
+```
+
+| # | Prompt | When |
+|---|---|---|
+| 01 | Get to know the repository | first session, nothing changes |
+| 02 | First feature: list posts by author | watch the full loop, contract first |
+| 03 | Schema change: tags on posts | migrations sensor and database rules |
+| 04 | New service: notify | the topology sensor teaches the architecture |
+| 05 | The harness is RED: fix only that | a report, the Stop hook or CI is RED |
+| 06 | Review a change | before commit / PR |
+| 07 | Ship | run what CI runs, write the PR |
+| 08 | Improve the harness | maintainers |
+
+**Claude Code** (wired in the repo): `CLAUDE.md` imports `AGENTS.md`; skills are exposed under `.claude/skills/`;
+a **Stop hook** runs the static sensors when the agent tries to finish with uncommitted changes and sends it
+back with the report while they are RED. It never blocks twice in a row, so a broken harness cannot trap it.
+
+**git.** `git config core.hooksPath .githooks` runs the blocking static sensors before every commit.
+
+**CI.** `.github/workflows/harness.yml` runs the harness self-tests and `./run.sh --full` on every PR and push
+to `main`, and the continuous stage nightly. The report is attached to the job summary and as an artifact.
+
+## 2.6 The review agent (optional LLM)
+
+The review agent needs an OpenAI-compatible endpoint (Ollama, vLLM, a hosted API):
+
+```bash
+./run.sh --llm                          # local Ollama on :11434, pulls LLM_MODEL (default qwen3:8b)
+# or in .env:
+LLM_BASE_URL=https://your-endpoint/v1
+LLM_MODEL=your-model
+LLM_API_KEY=...
+REVIEW_MODEL=a-stronger-model           # optional: review with a stronger model than you generate with
+```
+
+Without an LLM it reports **BLIND**, which never blocks.
+
+## 2.7 Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Cannot connect to the Docker daemon | start Docker Desktop / `sudo systemctl start docker` |
+| port is already allocated | set `GATEWAY_PORT` / `PROMETHEUS_PORT` in `.env` |
+| a service is unhealthy or exited | `docker compose ps -a`, then `make logs s=<service>` |
+| `migrate` exited with an error | a migration failed: never edit an applied one, add `V<next>__…sql` |
+| volume `subpath` errors | Docker Engine 26+ / Compose 2.24+ required |
+| `PermissionError` on `/out` | `.harness/` is owned by root from an old run: `sudo rm -rf .harness` |
+| host plane needs PyYAML | `pip install pyyaml` |
+| start from scratch | `make purge`, then `./run.sh` |
+
+`./help.sh troubleshoot` prints the same list.
+
+Next: [Use cases](03-use-cases.md)
