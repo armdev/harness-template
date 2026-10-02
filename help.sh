@@ -40,7 +40,8 @@ overview() {
   kv "./help.sh config" "configuration (.env)"
   kv "./help.sh troubleshoot" "when something does not start"
   p ""
-  p "${DIM}Docs: README.md (product), AGENTS.md (for agents), harness/HARNESS.md (design), harness/CHANGELOG.md${N}"
+  p "${DIM}Docs: docs/README.md (EN + RU: concepts, usage, use cases, architecture, components, LLD),${N}"
+  p "${DIM}      README.md (product), AGENTS.md (for agents), harness/HARNESS.md (design), harness/CHANGELOG.md${N}"
 }
 
 topic_run() {

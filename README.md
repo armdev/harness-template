@@ -7,6 +7,10 @@ so every guide and sensor works on running code from the first command.
 
 > Guides steer before the act; sensors correct after it.
 
+**Documentation:** [docs/](docs/README.md) — what a harness is, how to use it, use cases, architecture,
+components and low-level design, in [English](docs/en/01-what-is-a-harness.md) and
+[Russian](docs/ru/01-what-is-a-harness.md).
+
 ## 1. Run it
 
 ```bash
