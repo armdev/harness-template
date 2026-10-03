@@ -65,7 +65,7 @@ flowchart LR
 
 1. **Blocking failures** — each with *How to fix*, the *Guides* that teach the rule, the sensor output, and the
    exact command to *re-run only this* sensor.
-2. **Advisory findings** — judgement calls (review agent, eval).
+2. **Advisory findings** — judgement calls (review agent).
 3. **Blind sensors** — harness problems (e.g. a configured LLM that is unreachable). Report them, do not work
    around them. **Skipped** sensors are not configured here (e.g. no LLM at all) — expected, and they say how to enable them.
 4. **Warnings** — from sensors that passed.

@@ -4,7 +4,7 @@
 harness: 1
 template:
   name: py-services-pg-kafka          # the topology this harness regulates (variety reduction)
-  version: 0.3.0                      # projects pin this; upgrades arrive as a new runner image + manifest diff
+  version: 0.3.1                      # projects pin this; upgrades arrive as a new runner image + manifest diff
 
 categories: [maintainability, architecture, behaviour]
 
@@ -149,14 +149,14 @@ sensors:
     fix_hint: The contract suite is the spec. Change the implementation; change a contract test only when the user asked for new behaviour.
 
   - id: eval
-    kind: inferential                 # IR metrics are computational; the judge (JUDGE_*) is inferential
+    kind: computational               # the gate is recall@5 / MRR@10; the optional LLM judge@1 is reported, never gates
     category: behaviour
     plane: host
     stages: [pipeline]
-    blocking: false                   # becomes blocking once a baseline and tolerance are agreed
+    blocking: true                    # baseline eval/baseline.json, tolerance EVAL_TOLERANCE (0.05); stable on every run
     run: make -s eval
     pairs_with: [eval-readme, prompts]
-    fix_hint: Read .harness/eval-report.md (weakest queries first); explain any metric drop in the PR or revert the ranking change.
+    fix_hint: Read .harness/eval-report.md (weakest queries first). Revert the ranking change, or accept the new numbers deliberately (copy .harness/eval-results.json over eval/baseline.json and say why in the PR).
 
   - id: prom-rules
     kind: computational

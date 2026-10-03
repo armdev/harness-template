@@ -51,7 +51,7 @@ docs/                         this documentation
 | review-agent | inferential | live | pre-commit | no | `review.py` |
 | unit | computational | host | integration, pipeline | yes | `make test` |
 | contract | computational | host | integration, pipeline | yes | `make contract` |
-| eval | inferential | host | pipeline | no | `make eval` |
+| eval | computational | host | pipeline | yes | `make eval` |
 | prom-rules | computational | host | pipeline | yes | `promtool check rules` |
 | dead-code | computational | static | continuous | no | `vulture … --min-confidence 80` |
 | deps-audit | computational | live | continuous | no | `pip-audit -r <each requirements file>` |

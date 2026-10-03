@@ -1,7 +1,14 @@
 # Changelog — harness template `py-services-pg-kafka`
 
-## Unreleased
+## 0.3.1
 
+- **`eval` is blocking** (pipeline stage). It passed on every recorded run (4 of 4 in the ledger, across the tags
+  change and the notify service) with recall@5 0.875 and MRR@10 1.0, so the baseline and the tolerance
+  (`EVAL_TOLERANCE`, 0.05) are agreed. Only the computational metrics gate: a drop of the optional LLM judge@1 is
+  printed and marked `drop (advisory)`, never fails the run. The sensor's kind is now `computational` (coverage no
+  longer needs to flag an inferential blocking sensor). First-run impact on existing projects: a ranking change
+  that lowers recall@5 or MRR@10 by more than the tolerance now turns the pipeline RED; accept it deliberately by
+  promoting `.harness/eval-results.json` to `eval/baseline.json` in the same change (`eval/README.md`).
 - **Guides point to the shared consumer.** `harness/skills/new-topic/SKILL.md` step 4 and the
   `kafka-consumer-auto-commit` semgrep message now name `common.events.EventConsumer` (poll, commit after the
   handler, skip malformed events, seek back and back off on errors) instead of asking for a hand-written loop.

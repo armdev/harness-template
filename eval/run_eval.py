@@ -2,7 +2,8 @@
 """Search quality sensor. IR metrics are computational; the optional LLM judge is inferential.
 
 Seeds eval/corpus.yaml through the public API (once per corpus version), runs every query, and compares
-recall@5 and MRR@10 with eval/baseline.json. Exit 1 when a metric drops by more than EVAL_TOLERANCE.
+recall@5 and MRR@10 with eval/baseline.json. Exit 1 when one of them drops by more than EVAL_TOLERANCE (blocking).
+judge@1 (LLM) is reported against its baseline but never fails the run: it is inferential and model-dependent.
 Writes $EVAL_OUT/eval-report.md (for the agent) and $EVAL_OUT/eval-results.json (to promote to a baseline).
 """
 from __future__ import annotations
@@ -24,6 +25,7 @@ JUDGE_URL = os.environ.get("JUDGE_BASE_URL", "").rstrip("/")
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "qwen3:8b")
 JUDGE_KEY = os.environ.get("JUDGE_API_KEY", "not-needed")
 JUDGE_PROMPT = Path(os.environ.get("JUDGE_PROMPT", "harness/prompts/judge.md"))
+GATED = ("recall@5", "mrr@10")                           # computational metrics; only these can fail the run
 
 
 def seed(api: httpx.Client, corpus: dict, author: str) -> dict[int, str]:
@@ -93,7 +95,8 @@ def main() -> int:
 
     baseline_path = HERE / "baseline.json"
     baseline = json.loads(baseline_path.read_text())["metrics"] if baseline_path.exists() else {}
-    regressions = [k for k, v in metrics.items() if k in baseline and v < baseline[k] - TOLERANCE]
+    dropped = [k for k, v in metrics.items() if k in baseline and v < baseline[k] - TOLERANCE]
+    regressions = [k for k in dropped if k in GATED]
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "eval-results.json").write_text(json.dumps({"corpus": corpus["version"], "metrics": metrics}, indent=2))
@@ -101,7 +104,7 @@ def main() -> int:
              "| metric | now | baseline | |", "|---|---|---|---|"]
     for k, v in metrics.items():
         b = baseline.get(k)
-        flag = "REGRESSION" if k in regressions else ("new" if b is None else "")
+        flag = "REGRESSION" if k in regressions else "drop (advisory)" if k in dropped else "new" if b is None else ""
         lines.append(f"| {k} | {v:.3f} | {'-' if b is None else f'{b:.3f}'} | {flag} |")
     lines += ["", "| query | recall@5 | RR | top | judge |", "|---|---|---|---|---|"]
     lines += [f"| {r['q']} | {r['recall@5']:.2f} | {r['rr']:.2f} | {r['top'] or '-'} | "
@@ -115,6 +118,8 @@ def main() -> int:
     for r in worst:
         if r["rr"] < 1:
             print(f"weak query: {r['q']!r} recall@5={r['recall@5']:.2f} rr={r['rr']:.2f} top={r['top']}")
+    for k in sorted(set(dropped) - set(regressions)):
+        print(f"eval: {k} dropped (> {TOLERANCE} below baseline) — advisory, does not fail the run")
     if regressions:
         print(f"eval: regression in {', '.join(regressions)} (> {TOLERANCE} below baseline)")
         return 1

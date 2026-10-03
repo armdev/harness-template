@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.3.0
+# Harness template `py-services-pg-kafka` v0.3.1
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.
@@ -34,7 +34,7 @@ and it is packaged so that it can be versioned, instantiated and measured like a
 | `review-agent` | live | pre-commit | no | rubric applied to the diff by an LLM (opt-in: SKIPPED without `LLM_BASE_URL`) |
 | `unit` | host | integration, pipeline | yes | `libs/` unit tests |
 | `contract` | host | integration, pipeline | yes | the public API behaves as specified (stack up) |
-| `eval` | host | pipeline | no | search quality vs. `eval/baseline.json` (+ optional LLM judge) |
+| `eval` | host | pipeline | yes | search quality: recall@5 / MRR@10 vs. `eval/baseline.json` (an optional LLM judge@1 is advisory) |
 | `prom-rules` | host | pipeline | yes | alert rules parse (promtool) |
 | `dead-code` | static | continuous | no | vulture |
 | `deps-audit` | live | continuous | no | known-vulnerable pinned dependencies |
