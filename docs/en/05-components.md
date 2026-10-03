@@ -74,11 +74,11 @@ skills (`harness-report`, `harness-steer`), which `harness-coverage` reports hon
 
 | Component | Path | Responsibility |
 |---|---|---|
-| Shared library | `libs/common/common/` | `service_auth` (Ed25519 signing client, verifier, FastAPI dependency), `telemetry` (`create_app`: JSON logs, request id, `/healthz`, `/metrics`, HTTP metrics), `keygen` (identity generation) |
+| Shared library | `libs/common/common/` | `service_auth` (Ed25519 signing client, verifier, FastAPI dependency), `telemetry` (`create_app`: JSON logs, request id, `/healthz`, `/metrics`, HTTP metrics), `keygen` (identity generation), `events` (`EventConsumer`: Kafka consumer loop with commit-after-handler, skip malformed, retry on failure) |
 | gateway | `services/gateway/app.py` | public routes `/api/posts` (create, list by author), `/api/posts/{id}`, `/api/search`, `/api/notifications`; signed forwarding; `/` → `/docs` |
 | content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`, `GET /posts?author=`; writes `content.posts`; produces `content.post.created` |
-| search | `services/search/app.py`, `indexer.py` | `GET /search` (author and tag filters); Kafka consumer upserting `search.documents`; Postgres full-text ranking |
-| notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; Kafka consumer recording one `notify.outbox` row per post (idempotent) |
+| search | `services/search/app.py`, `indexer.py` | `GET /search` (author and tag filters); `EventConsumer` with a handler upserting `search.documents`; Postgres full-text ranking |
+| notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; `EventConsumer` with a handler recording one `notify.outbox` row per post (idempotent) |
 | Migrations | `db/migrations/V1..V7` | roles `content_svc`, `search_svc`, `notify_svc`; schemas `content`, `search`, `notify`; tables, indexes, tags, grants |
 | One-shots | `docker-compose.yml` | `storage-init` (DATA_DIR layout), `service-keys` (identities), `migrate` (Flyway), `kafka-init` (topics) |
 | Infrastructure | `docker-compose.yml` | `postgres`, `kafka` (KRaft), `prometheus` (profile), `ollama` (profile) |

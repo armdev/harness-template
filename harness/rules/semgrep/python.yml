@@ -63,8 +63,8 @@ rules:
     message: >-
       Kafka consumer with automatic offset commits (librdkafka's default). The offset can be committed before the
       event was handled, so a crash loses it (rubric R8). Set "enable.auto.commit": False in the config and commit
-      after the side effect succeeded: consumer.commit(message=msg, asynchronous=False). Model:
-      services/search/indexer.py; guide: harness/skills/new-topic/SKILL.md step 4.
+      after the side effect succeeded: consumer.commit(message=msg, asynchronous=False) — or use
+      common.events.EventConsumer, which does this. Guide: harness/skills/new-topic/SKILL.md step 4.
     patterns:
       - pattern: confluent_kafka.Consumer({...})
       - pattern-not: 'confluent_kafka.Consumer({..., "enable.auto.commit": False, ...})'

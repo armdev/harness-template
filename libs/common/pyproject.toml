@@ -14,5 +14,8 @@ dependencies = [
   "prometheus-client==0.26.0",
 ]
 
+[project.optional-dependencies]
+kafka = ["confluent-kafka==2.15.1"]   # common.events
+
 [tool.setuptools]
 packages = ["common"]

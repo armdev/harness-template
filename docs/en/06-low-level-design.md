@@ -262,6 +262,16 @@ store, so a captured request can be replayed inside the skew window (internal ne
   `http_request_duration_seconds{service,method,route}` (histogram).
 - `GET /healthz` → `{"status":"ok","service":…}`; `GET /metrics` → Prometheus text format.
 
+### Event consumer (`libs/common/common/events.py`)
+
+`EventConsumer(topic, handler, bootstrap=…, group_id=…, name=…)` runs one background thread; the
+`confluent_kafka.Consumer` is created in `start()` with `enable.auto.commit=False`, `auto.offset.reset=earliest`.
+Per message: broker error → logged (partition EOF ignored), nothing handled or committed · JSON decoded and passed to
+`handler(event)` · handler returned → `commit(message, asynchronous=False)` · not JSON, or the handler raised
+`ValueError` / `KeyError` → logged as malformed, committed (retrying cannot fix it) · any other exception → logged,
+`seek` back to the same offset, wait `backoff` (2 s), redelivered. Handlers must be idempotent. Requires the `kafka`
+extra of `libs/common`.
+
 ## 6.10 Services
 
 ### Public API (gateway)
@@ -305,17 +315,16 @@ field as `[]`). Only additive changes; a breaking change needs a new topic. Cons
 
 ### search
 
-- **Indexer** (thread): malformed event → logged and skipped (offset committed); database error → seek back
-  to the same offset, wait 2 s, retry. At-least-once + upsert = effectively once.
+- **Indexer**: `EventConsumer` (group `search`) with the handler `index_post` — upsert into `search.documents`,
+  missing `tags` → `[]`. At-least-once + upsert = effectively once.
 - **Query:** `websearch_to_tsquery('english', q)` against `tsv`; rank `ts_rank_cd`; order `score DESC, post_id
   DESC`; optional `author =` and `tag = ANY (tags)` filters; `LIMIT` 1–50 (default 10). Hits:
   `{id, title, author, tags, score}`.
 
 ### notify
 
-- **Consumer** (thread, group `notify`): one `notify.outbox` row per event, `INSERT … ON CONFLICT (post_id) DO
-  NOTHING`, offset committed after the write; malformed event → logged and skipped; database error → seek back,
-  wait 2 s, retry. A replayed event never notifies twice.
+- **Consumer**: `EventConsumer` (group `notify`) with the handler `record_notification` — one `notify.outbox` row
+  per event, `INSERT … ON CONFLICT (post_id) DO NOTHING`. A replayed event never notifies twice.
 - **`GET /outbox?author=&limit=`** (1–50, default 20) → `{author, notifications[{post_id, author, created_at}]}`,
   ordered `created_at DESC, post_id DESC`.
 

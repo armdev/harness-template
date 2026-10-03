@@ -74,11 +74,11 @@ docs/                         эта документация
 
 | Компонент | Путь | Ответственность |
 |---|---|---|
-| Общая библиотека | `libs/common/common/` | `service_auth` (подписывающий клиент Ed25519, верификатор, зависимость FastAPI), `telemetry` (`create_app`: JSON-логи, request id, `/healthz`, `/metrics`, HTTP-метрики), `keygen` (генерация идентичностей) |
+| Общая библиотека | `libs/common/common/` | `service_auth` (подписывающий клиент Ed25519, верификатор, зависимость FastAPI), `telemetry` (`create_app`: JSON-логи, request id, `/healthz`, `/metrics`, HTTP-метрики), `keygen` (генерация идентичностей), `events` (`EventConsumer`: цикл Kafka-консьюмера — коммит после обработчика, пропуск некорректных событий, повтор при сбое) |
 | gateway | `services/gateway/app.py` | публичные маршруты `/api/posts` (создание, список по автору), `/api/posts/{id}`, `/api/search`, `/api/notifications`; подписанное проксирование; `/` → `/docs` |
 | content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`, `GET /posts?author=`; пишет в `content.posts`; публикует `content.post.created` |
-| search | `services/search/app.py`, `indexer.py` | `GET /search` (фильтры по автору и тегу); Kafka-консьюмер, делающий upsert в `search.documents`; ранжирование полнотекстового поиска Postgres |
-| notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; Kafka-консьюмер, записывающий одну строку `notify.outbox` на пост (идемпотентно) |
+| search | `services/search/app.py`, `indexer.py` | `GET /search` (фильтры по автору и тегу); `EventConsumer` с обработчиком, делающим upsert в `search.documents`; ранжирование полнотекстового поиска Postgres |
+| notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; `EventConsumer` с обработчиком, записывающим одну строку `notify.outbox` на пост (идемпотентно) |
 | Миграции | `db/migrations/V1..V7` | роли `content_svc`, `search_svc`, `notify_svc`; схемы `content`, `search`, `notify`; таблицы, индексы, теги, права |
 | One-shot-сервисы | `docker-compose.yml` | `storage-init` (структура DATA_DIR), `service-keys` (идентичности), `migrate` (Flyway), `kafka-init` (топики) |
 | Инфраструктура | `docker-compose.yml` | `postgres`, `kafka` (KRaft), `prometheus` (профиль), `ollama` (профиль) |
