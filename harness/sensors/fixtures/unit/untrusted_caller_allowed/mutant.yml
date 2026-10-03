@@ -1,0 +1,4 @@
+# TRUSTED_CALLERS ignored: any caller with a key is accepted.
+file: common/service_auth.py
+find: "        if caller not in self.trusted:\n"
+replace: "        if False:\n"

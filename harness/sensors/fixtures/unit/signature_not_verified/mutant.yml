@@ -1,0 +1,4 @@
+# Signed calls whose signature is never checked.
+file: common/service_auth.py
+find: "self._public_key(caller).verify(base64.b64decode(sig), canonical(method, target, ts, body))"
+replace: "self._public_key(caller)"

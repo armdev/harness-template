@@ -32,6 +32,8 @@ make harness-selftest   # every seeded defect must fire, every clean fixture mus
 2. Write the message for the agent: what is wrong, where, and the exact fix. The message is a guide too.
 3. Seed a defect: a fixture whose first line is `# expect: <rule id>` (a directory fixture uses a `.expect`
    file), plus keep the `# expect: clean` fixture quiet. `make harness-selftest` must show `fires` and `quiet`.
+   For a test suite, the seeded defect is a mutant of the code (`harness/sensors/fixtures/unit/*/mutant.yml`,
+   expect the name of the test that must catch it): a critical behaviour without a killing mutant is unguarded.
 4. Register it in `harness.yaml` (`pairs_with` the guide that teaches it) and check `make harness-coverage`.
 5. `make harness-test` (lint + unit tests of the harness), then `make harness-fast` on the real repo: a new rule
    must not fire on the current code unless that is the point of the change.

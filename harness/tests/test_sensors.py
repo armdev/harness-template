@@ -86,3 +86,16 @@ def test_deps_audit_tells_findings_from_an_environment_that_cannot_audit(deps_au
     monkeypatch.setattr(subprocess, "run",
                         lambda *a, **k: subprocess.CompletedProcess(a[0], rc, stdout=output, stderr=""))
     assert deps_audit.main(["requirements.txt"]) == expected
+
+
+def test_a_mutant_that_no_longer_applies_is_blind_not_a_pass(tmp_path, monkeypatch):
+    from conftest import HARNESS, load
+    mutate = load("mutate", HARNESS / "sensors" / "mutate.py")
+    lib = tmp_path / "common"
+    (lib / "common").mkdir(parents=True)
+    (lib / "common" / "m.py").write_text("x = 1\n")
+    monkeypatch.setattr(mutate, "LIB", lib)
+    fx = tmp_path / "fx"
+    fx.mkdir()
+    (fx / "mutant.yml").write_text("file: common/m.py\nfind: 'y = 2'\nreplace: 'y = 3'\n")
+    assert mutate.main(str(fx)) == mutate.STALE

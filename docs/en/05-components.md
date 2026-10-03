@@ -56,6 +56,8 @@ docs/                         this documentation
 | dead-code | computational | static | continuous | no | `vulture … --min-confidence 80` |
 | deps-audit | computational | live | continuous | no | `harness/sensors/deps_audit.py` (pip-audit on each requirements file) |
 
+Selftest helpers: `harness/sensors/mutate.py` applies one mutant from `harness/sensors/fixtures/unit/<name>/mutant.yml` to a copy of `libs/common` and runs the unit tests on it; a mutant that no longer applies exits 126 (BLIND).
+
 ### Guides
 
 `AGENTS.md`, six skills, `RUBRIC.md`, semgrep rule messages, `harness/prompts/`, `contract/README.md`,

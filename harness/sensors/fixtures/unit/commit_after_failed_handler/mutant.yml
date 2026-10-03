@@ -1,0 +1,4 @@
+# At-least-once broken: the offset is committed although the handler failed (the event is lost).
+file: common/events.py
+find: "then redeliver\n            return\n"
+replace: "then redeliver\n"
