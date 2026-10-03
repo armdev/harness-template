@@ -1,5 +1,21 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.3.2
+
+- **`deps-audit` was blind and reported it as findings — fixed.** Seeding the sensor (it had no selftest) showed
+  that pip-audit could never run in `harness-live`: it builds a throwaway venv under `/tmp`, and the container's
+  tmpfs is `noexec`. pip-audit exits 1 for that too, so every nightly run showed a FAIL with environment errors
+  instead of an audit. `harness-live` now mounts `/tmp` with `exec` (the hermetic `harness` container keeps
+  `noexec`), and the sensor is `harness/sensors/deps_audit.py`, which exits 126 (BLIND) when pip-audit could not
+  audit and 1 only when it reported vulnerabilities. The repository's pins audit clean.
+- **Live-plane selftest.** `selftest` proves only the sensors of its plane (`--plane`, default `HARNESS_PLANE`);
+  the static container prints where the others are proven instead of reporting them blind. New
+  `make harness-selftest-live`, run nightly in CI. Seeded defects for `deps-audit`:
+  `harness/sensors/fixtures/deps-audit/` (a pin with a known vulnerability, and a clean pin; `.req` files so
+  dependency scanners do not mistake them for the project's requirements).
+- First-run impact on existing projects: nightly `deps-audit` starts auditing for real and may report genuine
+  vulnerabilities; where the network is missing it shows as BLIND, not FAIL.
+
 ## 0.3.1
 
 - **`eval` is blocking** (pipeline stage). It passed on every recorded run (4 of 4 in the ledger, across the tags

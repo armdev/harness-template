@@ -7,7 +7,7 @@ stage ?= pre-commit
 OUT_DIR := .harness
 
 .PHONY: harness-fast harness-static harness-integration harness-pipeline harness-continuous harness-selftest harness-coverage \
-        harness-stats harness-list harness-one harness-test harness-build harness-doctor
+        harness-stats harness-list harness-one harness-test harness-build harness-doctor harness-selftest-live
 
 harness-fast:            | $(OUT_DIR) ## pre-commit: hermetic static sensors (blocking) + review agent (advisory)
 	$(HC) run --rm harness run --stage pre-commit
@@ -33,6 +33,9 @@ harness-one:             | $(OUT_DIR) ## one container sensor: make harness-one 
 
 harness-selftest:        | $(OUT_DIR) ## seeded defects: prove the sensors can still fire (and stay quiet on clean code)
 	$(HC) run --rm harness selftest
+
+harness-selftest-live:   | $(OUT_DIR) ## seeded defects of the live-plane sensors (needs network: vulnerability database)
+	$(HC) run --rm harness-live selftest
 
 harness-coverage:        | $(OUT_DIR) ## guide/sensor matrix and feedforward-only / feedback-only gaps
 	$(HC) run --rm harness coverage

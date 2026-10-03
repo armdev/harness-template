@@ -44,7 +44,9 @@ jobs:
 
       - name: Continuous stage (nightly only, advisory)
         if: github.event_name == 'schedule'
-        run: make harness-continuous
+        run: |
+          make harness-selftest-live
+          make harness-continuous
 
       - name: Run the product end to end (stack, smoke test, all stages, URLs)
         if: github.event_name != 'schedule'

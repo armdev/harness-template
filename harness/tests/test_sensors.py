@@ -67,3 +67,22 @@ def test_review_parses_fenced_and_thinking_replies():
     assert review.parse_findings('{"findings": []}') == []
     with pytest.raises(ValueError):
         review.parse_findings("I could not review this.")
+
+
+@pytest.fixture()
+def deps_audit():
+    from conftest import HARNESS, load
+    return load("deps_audit", HARNESS / "sensors" / "deps_audit.py")
+
+
+@pytest.mark.parametrize("rc, output, expected", [
+    (0, "No known vulnerabilities found", 0),
+    (1, "Found 3 known vulnerabilities in 1 package", 1),
+    (1, "ERROR:pip_audit._cli:Couldn't execute in a temporary directory under /tmp.", 126),
+])
+def test_deps_audit_tells_findings_from_an_environment_that_cannot_audit(deps_audit, monkeypatch, rc, output,
+                                                                         expected):
+    import subprocess
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *a, **k: subprocess.CompletedProcess(a[0], rc, stdout=output, stderr=""))
+    assert deps_audit.main(["requirements.txt"]) == expected

@@ -73,9 +73,23 @@ def test_selftest_needs_fire_on_defects_and_quiet_on_clean(runner, tmp_path):
         "stages": ["pre-commit"], "run": "true", "pairs_with": ["g"],
         "selftest": {"fixtures": "fx", "run": "grep -q BOOM {fixture} && echo BOOM && exit 1 || exit 0"}}]}
     setup(tmp_path, manifest)
-    assert runner.cmd_selftest(argparse.Namespace(only=None)) == 0
+    assert runner.cmd_selftest(argparse.Namespace(only=None, plane="all")) == 0
     (fx / "bad.txt").write_text("# expect: KABOOM\n")       # sensor output no longer contains the expectation
-    assert runner.cmd_selftest(argparse.Namespace(only=None)) == 1
+    assert runner.cmd_selftest(argparse.Namespace(only=None, plane="all")) == 1
+
+
+def test_selftest_proves_only_the_sensors_of_its_plane(runner, tmp_path, capsys):
+    fx = tmp_path / "fx"
+    fx.mkdir()
+    (fx / "bad.txt").write_text("# expect: BOOM\n")
+    manifest = {"harness": 1, "categories": ["maintainability"], "guides": [], "sensors": [{
+        "id": "online", "kind": "computational", "category": "maintainability", "plane": "live",
+        "stages": ["continuous"], "run": "true",
+        "selftest": {"fixtures": "fx", "run": "exit 126"}}]}       # what a network sensor looks like offline
+    setup(tmp_path, manifest)
+    assert runner.cmd_selftest(argparse.Namespace(only=None, plane="static")) == 0
+    assert "proven by make harness-selftest-live" in capsys.readouterr().out
+    assert runner.cmd_selftest(argparse.Namespace(only=None, plane="live")) == 1
 
 
 def test_coverage_flags_inconsistent_manifest(runner, tmp_path, capsys):

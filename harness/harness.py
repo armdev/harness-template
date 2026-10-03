@@ -2,7 +2,7 @@
 """Harness runner. One manifest (harness.yaml), five verbs.
 
   run --stage S [--plane P] [--only ID]  execute sensors, write .harness/report.md for the agent
-  selftest [--only ID]                   prove each sensor still fires on seeded defects (and stays quiet on clean ones)
+  selftest [--plane P] [--only ID]       prove each sensor still fires on seeded defects (and stays quiet on clean ones)
   coverage                               guides x sensors x categories; feedforward-only / feedback-only gaps
   stats [--min-runs N]                   steering-loop data from the ledger: what fires, what never does
   list                                   every sensor with its stage, plane and command (what the agent can run)
@@ -188,14 +188,20 @@ def fixture_expectation(fx: Path) -> str | None:
 
 
 def cmd_selftest(a: argparse.Namespace) -> int:
-    """A sensor that never fires is either a sign of quality or blindness; seeded defects tell which."""
+    """A sensor that never fires is either a sign of quality or blindness; seeded defects tell which.
+    Each plane proves its own sensors: in the static container (no network) a live sensor would only look blind."""
     rc = 0
+    planes = set(PLANES) if a.plane == "all" else {a.plane}
     for s in manifest()["sensors"]:
         if a.only and s["id"] != a.only:
             continue
         st = s.get("selftest")
         if not st:
             print(f"[ skip  ] {s['id']:22} no seeded defects — firing ability unproven")
+            continue
+        if s["plane"] not in planes:
+            target = "make harness-selftest-live" if s["plane"] == "live" else f"selftest --plane {s['plane']}"
+            print(f"[ skip  ] {s['id']:22} plane {s['plane']} — proven by {target}")
             continue
         fixtures = sorted(f for f in (ROOT / st["fixtures"]).iterdir() if not f.name.startswith("."))
         if not fixtures:
@@ -326,6 +332,7 @@ def main() -> int:
     r.add_argument("--plane", default=os.environ.get("HARNESS_PLANE", "all"), choices=[*PLANES, "all"])
     r.add_argument("--only")
     st = sub.add_parser("selftest")
+    st.add_argument("--plane", default=os.environ.get("HARNESS_PLANE", "all"), choices=[*PLANES, "all"])
     st.add_argument("--only")
     sub.add_parser("coverage")
     s = sub.add_parser("stats")
