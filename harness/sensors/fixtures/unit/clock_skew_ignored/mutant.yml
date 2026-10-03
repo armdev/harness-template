@@ -1,0 +1,4 @@
+# Replayed requests: the timestamp window is never enforced.
+file: common/service_auth.py
+find: "int(ts)) > self.max_skew:"
+replace: "int(ts)) > 10**12:"

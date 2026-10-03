@@ -6,7 +6,7 @@
 
 x-harness-svc: &harness
   build: { context: ., dockerfile: harness/Dockerfile }
-  image: ${HARNESS_IMAGE:-air-harness-runner:0.3.4}
+  image: ${HARNESS_IMAGE:-air-harness-runner:0.3.5}
   profiles: [harness]
   user: "${HARNESS_UID:-1000}:${HARNESS_GID:-1000}"    # report files owned by the developer, not root
   read_only: true

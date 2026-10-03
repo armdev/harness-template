@@ -1,0 +1,4 @@
+# The machinery itself: a no-op mutant must leave the suite green.
+file: common/service_auth.py
+find: 'raise AuthError(401, "missing signature headers")'
+replace: 'raise AuthError(401, "missing signature headers")'

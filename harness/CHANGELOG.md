@@ -1,5 +1,17 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.3.5
+
+- **Seeded defects for `unit`, as mutants.** `harness/sensors/mutate.py` applies one mutant to a copy of
+  `libs/common` and runs the unit tests on it; `harness/sensors/fixtures/unit/` holds four, each naming the test
+  that must turn red: signatures not verified (`test_tampered_body_fails`), `TRUSTED_CALLERS` ignored
+  (`test_untrusted_caller_is_forbidden`), clock skew ignored (`test_stale_timestamp_fails`), the Kafka offset
+  committed after a failed handler (`test_handler_failure_seeks_back_and_retries_without_committing`), plus an
+  identity mutant that must stay quiet. A mutant whose `find` text no longer occurs exactly once exits 126, so a
+  stale fixture is reported BLIND, never as a pass. Taught in `harness/skills/harness-steer/SKILL.md` step 3.
+- First-run impact on existing projects: none; projects that change `libs/common` may need to refresh a mutant's
+  `find` text (the selftest says which).
+
 ## 0.3.4
 
 - **Seeded defects for `eval`**, blocking since 0.3.1 but unproven: `harness/sensors/fixtures/eval/` holds

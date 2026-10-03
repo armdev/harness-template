@@ -1,0 +1,1 @@
+# expect: test_handler_failure_seeks_back_and_retries_without_committing
