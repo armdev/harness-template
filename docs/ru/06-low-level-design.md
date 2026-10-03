@@ -20,7 +20,7 @@
 | Команда | Что делает | Коды выхода |
 |---|---|---|
 | `run --stage S [--plane P] [--only ID]` | запускает выбранные сенсоры, пишет результаты, журнал, отчёт | 0 зелёный · 1 блокирующий сенсор упал **или слеп** · 2 неизвестный id в `--only` · 3 сенсор из `--only` принадлежит другой плоскости |
-| `selftest [--only ID]` | прогоняет `selftest.run` каждого сенсора на каждой фикстуре | 0 все срабатывают / молчат · 1 какой-то сенсор слеп или шумит |
+| `selftest [--plane P] [--only ID]` | прогоняет `selftest.run` каждого сенсора на каждой фикстуре; только сенсоры своей плоскости (`HARNESS_PLANE`), для остальных печатает, где они проверяются | 0 все срабатывают / молчат · 1 какой-то сенсор слеп или шумит |
 | `coverage` | матрица гайды × сенсоры, проверки согласованности | 0 согласовано · 1 есть проблемы |
 | `stats [--min-runs N]` | таблица управления по журналу (`N` по умолчанию 20) | 0 |
 | `list` | одна строка на сенсор | 0 |
@@ -111,7 +111,7 @@ flowchart TD
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.3.1 }
+template: { name: py-services-pg-kafka, version: 0.3.2 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <уникальный>             # на него ссылается sensors.pairs_with
@@ -135,14 +135,14 @@ sensors:
 
 ## 6.3 Контейнеры сенсоров (`compose.harness.yml`, `harness.mk`)
 
-Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.1}`, профиль `harness`,
+Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.2}`, профиль `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (make подставляет вызвавшего пользователя), `read_only: true`,
 `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, репозиторий в `/work:ro` и `./.harness` в `/out`.
 
 | Сервис | Сеть | Дополнительное окружение |
 |---|---|---|
 | `harness` | `network_mode: none` | `HARNESS_PLANE=static`, `MIGRATIONS_BASE` |
-| `harness-live` | сеть проекта + `host.docker.internal` | `HARNESS_PLANE=live`, `LLM_*`, `REVIEW_MODEL`, `REVIEW_DIFF_BASE` |
+| `harness-live` | сеть проекта + `host.docker.internal` | `HARNESS_PLANE=live`, `LLM_*`, `REVIEW_MODEL`, `REVIEW_DIFF_BASE`; `/tmp` смонтирован с `exec` (pip-audit создаёт там временный venv) |
 
 У каждой контейнерной цели есть order-only-зависимость `| $(OUT_DIR)`, которая создаёт `.harness/` от имени
 вызвавшего пользователя *до того*, как docker создал бы источник bind-монтирования от root. `harness-one`
@@ -420,7 +420,7 @@ flowchart TD
 Триггеры: pull request, push в `main`, ночью (03:17 UTC), вручную. Один джоб на `ubuntu-latest`:
 checkout (полная история) → setup-python 3.12 + PyYAML, `DATA_DIR=$RUNNER_TEMP/air-harness-data` →
 `make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest` → `make harness-static` →
-ночью: `make harness-continuous`; иначе `./run.sh --full` → отчёт и отчёт eval в сводку джоба → логи сервисов
+ночью: `make harness-selftest-live`, `make harness-continuous`; иначе `./run.sh --full` → отчёт и отчёт eval в сводку джоба → логи сервисов
 при провале → `.harness/` как артефакт → `make clean`. `MIGRATIONS_BASE` — `origin/<базовая ветка>` для
 pull request и `HEAD~1` для push.
 
@@ -441,7 +441,7 @@ pull request и `HEAD~1` для push.
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | пусто (ревью пропускается), `qwen3:8b` | агент-ревьюер (включается явно) |
 | `REVIEW_DIFF_BASE` | пусто | что именно ревьюит ревьюер |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, пусто | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.1, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.2, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
 Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).

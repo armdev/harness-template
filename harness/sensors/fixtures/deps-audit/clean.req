@@ -1,0 +1,3 @@
+# expect: clean
+# deps-audit must stay quiet on a pin without known vulnerabilities.
+six==1.17.0

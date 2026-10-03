@@ -20,7 +20,7 @@ Single file, standard library + PyYAML. The same script runs in the sensor conta
 | Verb | Does | Exit codes |
 |---|---|---|
 | `run --stage S [--plane P] [--only ID]` | runs the selected sensors, writes results, ledger, report | 0 green · 1 a blocking sensor failed **or is blind** · 2 unknown `--only` id · 3 `--only` sensor belongs to another plane |
-| `selftest [--only ID]` | runs every sensor's `selftest.run` on each fixture | 0 all fire / stay quiet · 1 a sensor is blind or noisy |
+| `selftest [--plane P] [--only ID]` | runs every sensor's `selftest.run` on each fixture; only the sensors of its plane (`HARNESS_PLANE`), the others print where they are proven | 0 all fire / stay quiet · 1 a sensor is blind or noisy |
 | `coverage` | guide × sensor matrix, consistency checks | 0 consistent · 1 problems |
 | `stats [--min-runs N]` | steering table from the ledger (`N` default 20) | 0 |
 | `list` | one line per sensor | 0 |
@@ -108,7 +108,7 @@ demote or remove.
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.3.1 }
+template: { name: py-services-pg-kafka, version: 0.3.2 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <unique>                 # referenced by sensors.pairs_with
@@ -132,14 +132,14 @@ sensors:
 
 ## 6.3 Sensor containers (`compose.harness.yml`, `harness.mk`)
 
-Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.1}`, profile `harness`,
+Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.2}`, profile `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (set by make to the invoking user), `read_only: true`, `tmpfs: /tmp`,
 `cap_drop: [ALL]`, `no-new-privileges`, the repository at `/work:ro` and `./.harness` at `/out`.
 
 | Service | Network | Extra environment |
 |---|---|---|
 | `harness` | `network_mode: none` | `HARNESS_PLANE=static`, `MIGRATIONS_BASE` |
-| `harness-live` | project network + `host.docker.internal` | `HARNESS_PLANE=live`, `LLM_*`, `REVIEW_MODEL`, `REVIEW_DIFF_BASE` |
+| `harness-live` | project network + `host.docker.internal` | `HARNESS_PLANE=live`, `LLM_*`, `REVIEW_MODEL`, `REVIEW_DIFF_BASE`; `/tmp` mounted `exec` (pip-audit runs a throwaway venv there) |
 
 Every container target has the order-only prerequisite `| $(OUT_DIR)`, which creates `.harness/` as the
 invoking user *before* docker would create the bind-mount source as root. `harness-one` runs the sensor in
@@ -415,7 +415,7 @@ URL values come from the environment, then `.env`, then defaults (`PUBLIC_HOST`,
 Triggers: pull requests, pushes to `main`, nightly (03:17 UTC), manual. One job on `ubuntu-latest`:
 checkout (full history) → setup-python 3.12 + PyYAML, `DATA_DIR=$RUNNER_TEMP/air-harness-data` →
 `make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest` → `make harness-static` →
-nightly: `make harness-continuous`; otherwise `./run.sh --full` → report and eval report into the job summary →
+nightly: `make harness-selftest-live`, `make harness-continuous`; otherwise `./run.sh --full` → report and eval report into the job summary →
 service logs on failure → `.harness/` as an artifact → `make clean`. `MIGRATIONS_BASE` is
 `origin/<base branch>` on pull requests and `HEAD~1` on pushes.
 
@@ -436,7 +436,7 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | empty (review skipped), `qwen3:8b` | review agent (opt-in) |
 | `REVIEW_DIFF_BASE` | empty | what the reviewer reviews |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, empty | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.3.1, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.3.2, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | host name printed by `run.sh` |
 
 Next: [Demo](07-demo.md) · back to the [documentation index](../README.md).

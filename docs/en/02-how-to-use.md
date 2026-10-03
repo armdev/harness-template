@@ -86,6 +86,7 @@ Tools for trusting and steering the harness:
 | Command | Purpose |
 |---|---|
 | `make harness-selftest` | every sensor fires on its seeded defects and stays quiet on clean fixtures |
+| `make harness-selftest-live` | the same for the live-plane sensors that need network (`deps-audit`); CI runs it nightly |
 | `make harness-coverage` | guide × sensor matrix: rules nobody checks, lessons nobody teaches, broken manifest entries |
 | `make harness-stats` | from the ledger: what fires often (weak guide), never fires, is blind |
 | `make harness-list` | every sensor with stage, plane, blocking flag, command |

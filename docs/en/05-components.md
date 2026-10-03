@@ -54,7 +54,7 @@ docs/                         this documentation
 | eval | computational | host | pipeline | yes | `make eval` |
 | prom-rules | computational | host | pipeline | yes | `promtool check rules` |
 | dead-code | computational | static | continuous | no | `vulture … --min-confidence 80` |
-| deps-audit | computational | live | continuous | no | `pip-audit -r <each requirements file>` |
+| deps-audit | computational | live | continuous | no | `harness/sensors/deps_audit.py` (pip-audit on each requirements file) |
 
 ### Guides
 
