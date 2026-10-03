@@ -1,5 +1,11 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## Unreleased
+
+- **Guides point to the shared consumer.** `harness/skills/new-topic/SKILL.md` step 4 and the
+  `kafka-consumer-auto-commit` semgrep message now name `common.events.EventConsumer` (poll, commit after the
+  handler, skip malformed events, seek back and back off on errors) instead of asking for a hand-written loop.
+
 ## 0.3.0
 
 Three changes from the steering loop (`harness/prompts/next-steps/08-improve-harness.md`), each found while an agent

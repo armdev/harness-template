@@ -4,28 +4,30 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from functools import partial
 
 from fastapi import Depends, Query
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 
+from common.events import EventConsumer
 from common.service_auth import require_caller
 from common.telemetry import create_app
-from indexer import Indexer
+from indexer import index_post
 
 log = logging.getLogger(__name__)
 
 pool = ConnectionPool(os.environ.get("DB_DSN", ""), open=False, kwargs={"row_factory": dict_row})
-indexer: Indexer | None = None
+indexer: EventConsumer | None = None
 
 
 @asynccontextmanager
 async def lifespan(_app):
     global indexer
     pool.open(wait=True, timeout=30)
-    indexer = Indexer(pool, os.environ["KAFKA_BOOTSTRAP"],
-                      os.environ.get("POST_CREATED_TOPIC", "content.post.created"))
+    indexer = EventConsumer(os.environ.get("POST_CREATED_TOPIC", "content.post.created"), partial(index_post, pool),
+                            bootstrap=os.environ["KAFKA_BOOTSTRAP"], group_id="search", name="indexer")
     indexer.start()
     yield
     indexer.stop()

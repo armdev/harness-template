@@ -15,9 +15,11 @@ producer to a topic that is not declared fails at runtime.
 3. **Producer** (see `services/content/app.py`): `acks=all`, `enable.idempotence=True`; key = the entity id so
    all events of one entity are ordered; value = the full entity as JSON (consumers should not have to call back).
    Produce after the database commit and check the `flush()` result.
-4. **Consumer** (see `services/search/indexer.py`): its own `group.id` (= service name),
-   `enable.auto.commit=False`, commit only after the side effect succeeded, upsert so redelivery is harmless,
-   seek back and back off when the database is down (rubric R8).
+4. **Consumer**: use `common.events.EventConsumer(topic, handler, bootstrap=..., group_id=<service name>)` — it
+   commits only after the handler returned, skips malformed events, and seeks back and backs off when the handler
+   fails (rubric R8). Write only the handler, and make it idempotent (upsert / `ON CONFLICT`) so redelivery is
+   harmless. Install `libs/common` with the `kafka` extra. Examples: `services/search/indexer.py`,
+   `services/notify/consumer.py`.
 5. **Schema changes** to an existing event: only add fields. Removing or renaming a field needs a new topic
    (`...created.v2`) and a migration period with both.
 6. **Behaviour**: a contract test that observes the effect through the public API with `eventually(...)`.

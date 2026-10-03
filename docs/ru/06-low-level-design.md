@@ -266,6 +266,16 @@ sequenceDiagram
   `http_request_duration_seconds{service,method,route}` (гистограмма).
 - `GET /healthz` → `{"status":"ok","service":…}`; `GET /metrics` → текстовый формат Prometheus.
 
+### Консьюмер событий (`libs/common/common/events.py`)
+
+`EventConsumer(topic, handler, bootstrap=…, group_id=…, name=…)` работает в одном фоновом потоке;
+`confluent_kafka.Consumer` создаётся в `start()` с `enable.auto.commit=False`, `auto.offset.reset=earliest`.
+Для каждого сообщения: ошибка брокера → лог (конец партиции игнорируется), ничего не обрабатывается и не
+коммитится · JSON декодируется и передаётся в `handler(event)` · обработчик завершился → `commit(message,
+asynchronous=False)` · не JSON или обработчик бросил `ValueError` / `KeyError` → лог как некорректное, коммит
+(повтор не поможет) · любое другое исключение → лог, `seek` к тому же смещению, пауза `backoff` (2 с), повторная
+доставка. Обработчики должны быть идемпотентными. Нужен extra `kafka` пакета `libs/common`.
+
 ## 6.10 Сервисы
 
 ### Публичный API (gateway)
@@ -310,17 +320,17 @@ sequenceDiagram
 
 ### search
 
-- **Индексатор** (поток): некорректное событие → логируется и пропускается (смещение коммитится); ошибка БД →
-  возврат к тому же смещению, пауза 2 с, повтор. At-least-once + upsert = фактически ровно один раз.
+- **Индексатор**: `EventConsumer` (группа `search`) с обработчиком `index_post` — upsert в `search.documents`,
+  отсутствующие `tags` → `[]`. At-least-once + upsert = фактически ровно один раз.
 - **Запрос:** `websearch_to_tsquery('english', q)` по `tsv`; ранг `ts_rank_cd`; сортировка `score DESC,
   post_id DESC`; опциональные фильтры `author =` и `tag = ANY (tags)`; `LIMIT` 1–50 (по умолчанию 10).
   Результаты: `{id, title, author, tags, score}`.
 
 ### notify
 
-- **Консьюмер** (поток, группа `notify`): одна строка `notify.outbox` на событие, `INSERT … ON CONFLICT
-  (post_id) DO NOTHING`, коммит смещения после записи; некорректное событие → логируется и пропускается; ошибка
-  БД → возврат к смещению, пауза 2 с, повтор. Повторно доставленное событие не создаёт второго уведомления.
+- **Консьюмер**: `EventConsumer` (группа `notify`) с обработчиком `record_notification` — одна строка
+  `notify.outbox` на событие, `INSERT … ON CONFLICT (post_id) DO NOTHING`. Повторно доставленное событие не
+  создаёт второго уведомления.
 - **`GET /outbox?author=&limit=`** (1–50, по умолчанию 20) → `{author, notifications[{post_id, author,
   created_at}]}` в порядке `created_at DESC, post_id DESC`.
 

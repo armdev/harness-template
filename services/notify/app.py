@@ -6,28 +6,31 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
+from functools import partial
 
 from fastapi import Depends, Query
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel
 
+from common.events import EventConsumer
 from common.service_auth import require_caller
 from common.telemetry import create_app
-from consumer import Notifier
+from consumer import record_notification
 
 log = logging.getLogger(__name__)
 
 pool = ConnectionPool(os.environ.get("DB_DSN", ""), open=False, kwargs={"row_factory": dict_row})
-notifier: Notifier | None = None
+notifier: EventConsumer | None = None
 
 
 @asynccontextmanager
 async def lifespan(_app):
     global notifier
     pool.open(wait=True, timeout=30)
-    notifier = Notifier(pool, os.environ["KAFKA_BOOTSTRAP"],
-                        os.environ.get("POST_CREATED_TOPIC", "content.post.created"))
+    notifier = EventConsumer(os.environ.get("POST_CREATED_TOPIC", "content.post.created"),
+                             partial(record_notification, pool),
+                             bootstrap=os.environ["KAFKA_BOOTSTRAP"], group_id="notify", name="notifier")
     notifier.start()
     yield
     notifier.stop()
