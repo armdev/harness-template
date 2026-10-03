@@ -17,6 +17,12 @@ be reported as ERROR.
 | R8  | no  | An event consumer is idempotent (upsert / dedupe on a key) and commits its offset only after its side effect succeeded (auto-commit is caught mechanically by semgrep `kafka-consumer-auto-commit`; review the rest). An event payload change is backward compatible or uses a new topic. |
 | R9  | no  | A change to ranking or search behaviour states its expected effect on `make eval` in the commit message or PR. |
 
+## How the reviewer is checked
+
+`make harness-selftest-live` (with an LLM configured) feeds the reviewer seeded diffs from
+`harness/sensors/fixtures/review/`: one per inferential-only rule it must flag (R3, R4) and a clean one it must not.
+A reviewer that misses one is reported BLIND. Add a seeded diff before promoting a rule to blocking.
+
 ## How to dispute a finding
 
 The rubric improves only if wrong findings are recorded. If a review finding is wrong, say why in the commit

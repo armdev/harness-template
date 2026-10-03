@@ -4,7 +4,7 @@
 harness: 1
 template:
   name: py-services-pg-kafka          # the topology this harness regulates (variety reduction)
-  version: 0.3.6                      # projects pin this; upgrades arrive as a new runner image + manifest diff
+  version: 0.3.7                      # projects pin this; upgrades arrive as a new runner image + manifest diff
 
 categories: [maintainability, architecture, behaviour]
 
@@ -127,6 +127,9 @@ sensors:
     run: python harness/sensors/review.py
     pairs_with: [review-rubric, prompts]
     fix_hint: Address ERROR findings or reply in the commit message why the finding is wrong (feeds the rubric).
+    selftest:                         # live plane, LLM configured: seeded diffs that break an inferential-only rule
+      fixtures: harness/sensors/fixtures/review
+      run: REVIEW_DIFF_FILE={fixture}/change.diff python harness/sensors/review.py
 
   - id: unit
     kind: computational

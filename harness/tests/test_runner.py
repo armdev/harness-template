@@ -166,3 +166,16 @@ def test_selftest_command_may_use_shell_parameter_defaults(runner, tmp_path):
         "selftest": {"fixtures": "fx", "run": "echo ${UNSET_TAG:-BOOM} {fixture}; exit 1"}}]}
     setup(tmp_path, manifest)
     assert runner.cmd_selftest(argparse.Namespace(only=None, plane="host")) == 0
+
+
+def test_selftest_of_an_unconfigured_sensor_is_skipped_not_blind(runner, tmp_path, capsys):
+    fx = tmp_path / "fx"
+    fx.mkdir()
+    (fx / "bad.txt").write_text("# expect: R3\n")
+    manifest = {"harness": 1, "categories": ["maintainability"], "guides": [], "sensors": [{
+        "id": "reviewer", "kind": "inferential", "category": "maintainability", "plane": "live", "blocking": False,
+        "stages": ["pre-commit"], "run": "true",
+        "selftest": {"fixtures": "fx", "run": "echo 'review: skipped - no LLM configured'; exit 125"}}]}
+    setup(tmp_path, manifest)
+    assert runner.cmd_selftest(argparse.Namespace(only=None, plane="live")) == 0
+    assert "not configured" in capsys.readouterr().out

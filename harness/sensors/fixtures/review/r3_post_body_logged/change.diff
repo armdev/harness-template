@@ -1,0 +1,9 @@
+diff --git a/services/content/app.py b/services/content/app.py
+--- a/services/content/app.py
++++ b/services/content/app.py
+@@ -71,5 +71,5 @@ def create_post(post: PostIn, caller: str = Depends(auth)) -> Post:
+     except KafkaException:
+         log.error("post %s stored but its event was not acknowledged by Kafka", created.id)
+-    log.info("post %s created (caller %s)", created.id, caller)
++    log.info("post %s created by %s: %s", created.id, post.author, post.body)
+     return created

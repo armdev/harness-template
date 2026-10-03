@@ -1,5 +1,18 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.3.7
+
+- **Seeded defects for `review-agent`**, the last sensor without them. `harness/sensors/fixtures/review/` holds
+  diffs that break the rules only the reviewer can check: R3 (a post body logged) and R4 (notify reading
+  `content.posts`), plus a clean diff it must not flag. `review.py` reads `REVIEW_DIFF_FILE`; the expectation lives in
+  `.expect`, never in the diff the model sees. With an LLM configured, `make harness-selftest-live` reports a reviewer
+  that misses a seeded violation as BLIND; this is the first precision measurement the rubric asks for before a rule
+  becomes blocking (`RUBRIC.md`, "How the reviewer is checked").
+- **`selftest` treats exit 125 (not configured) as SKIP**, not BLIND, so the nightly live selftest stays meaningful
+  without an LLM.
+- Every sensor in the manifest now has seeded defects.
+- First-run impact on existing projects: none.
+
 ## 0.3.6
 
 - **Seeded defects for `contract`**, the last blocking sensor without them. `mutate.py` takes `target: gateway`:
