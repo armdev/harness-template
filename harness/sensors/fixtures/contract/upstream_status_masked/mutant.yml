@@ -1,0 +1,5 @@
+# The gateway turns every upstream answer into 200: a missing post looks like a success.
+target: gateway
+file: app.py
+find: 'status_code=r.status_code,'
+replace: 'status_code=200,'

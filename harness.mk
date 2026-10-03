@@ -37,7 +37,7 @@ harness-selftest:        | $(OUT_DIR) ## seeded defects: prove the sensors can s
 harness-selftest-live:   | $(OUT_DIR) ## seeded defects of the live-plane sensors (needs network: vulnerability database)
 	$(HC) run --rm harness-live selftest
 
-harness-selftest-host: harness-doctor | $(OUT_DIR) ## seeded defects of the host-plane sensors (prom-rules, unit mutants: docker; eval: stack up)
+harness-selftest-host: harness-doctor | $(OUT_DIR) ## seeded defects of the host-plane sensors (prom-rules, unit: docker; eval, contract: stack up)
 	$(H) selftest --plane host
 
 harness-coverage:        | $(OUT_DIR) ## guide/sensor matrix and feedforward-only / feedback-only gaps

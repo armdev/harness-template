@@ -1,5 +1,18 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.3.6
+
+- **Seeded defects for `contract`**, the last blocking sensor without them. `mutate.py` takes `target: gateway`:
+  it runs a second gateway from a mutated copy of `services/gateway` next to the stack (`docker compose run
+  --no-deps`, no host port) and points the contract suite at it. `harness/sensors/fixtures/contract/`: the author
+  filter dropped from `GET /api/posts` (`test_list_by_author_only_returns_that_author`), the tag filter dropped
+  from search (`test_search_filters_by_tag`), every upstream status turned into 200 (`test_unknown_post_is_404`),
+  and an unmodified gateway that must pass the whole contract. Removing the gateway's `limit` validation was
+  considered and rejected as a mutant: search validates `limit` too, so the contract rightly still passes.
+- Every blocking sensor now has seeded defects; `selftest` reports `firing ability unproven` only for the
+  advisory review agent (needs an LLM).
+- First-run impact on existing projects: none; `make harness-selftest-host` takes about a minute longer.
+
 ## 0.3.5
 
 - **Seeded defects for `unit`, as mutants.** `harness/sensors/mutate.py` applies one mutant to a copy of
