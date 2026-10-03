@@ -1,0 +1,7 @@
+# expect: could not parse expression
+groups:
+  - name: seeded
+    rules:
+      - alert: UnclosedParenthesis
+        expr: rate(http_requests_total[5m] > 1
+        for: 1m

@@ -149,6 +149,9 @@ harness_checks() {
   local rc=0
   title "Harness: seeded defects (every sensor can still fire)"
   run make -s harness-selftest | grep -vE '^\s*Container' || rc=1
+  if python3 -c 'import yaml' 2>/dev/null; then
+    run make -s harness-selftest-host || rc=1
+  fi
   title "Harness: fast loop (what an agent runs after every change)"
   run make -s harness-fast | grep -E '^\[|report' || true
   head -1 .harness/report.md | grep -q GREEN && ok "pre-commit stage GREEN" || { fail "pre-commit stage RED — read .harness/report.md"; rc=1; }

@@ -1,5 +1,17 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.3.3
+
+- **Seeded defects for `prom-rules`** (blocking, host plane), which had none: `harness/sensors/fixtures/prom-rules/`
+  — an unparsable PromQL expression and a duration written in words must fire, a minimal valid rule file must stay
+  quiet. New `make harness-selftest-host`, run in CI on every PR and by `./run.sh --check`.
+- **Runner fixes found by it.** `selftest` substituted `{fixture}` with `str.format`, so a selftest command using a
+  shell default such as `${PROMETHEUS_TAG:-v3.6.0}` crashed the runner (KeyError); it now replaces only `{fixture}`.
+  The pointer printed for static sensors outside the static plane named a target that does not exist; it now says
+  `make harness-selftest`.
+- First-run impact on existing projects: none on product code; projects with their own selftest commands that
+  escape braces as `{{ }}` for `str.format` must unescape them.
+
 ## 0.3.2
 
 - **`deps-audit` was blind and reported it as findings — fixed.** Seeding the sensor (it had no selftest) showed

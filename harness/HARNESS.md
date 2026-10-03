@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.3.2
+# Harness template `py-services-pg-kafka` v0.3.3
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.
@@ -57,7 +57,7 @@ echo 'include harness.mk' >> <project>/Makefile
 echo '.harness/' >> <project>/.gitignore
 # in <project>/docker-compose.yml: x-harness: { alerts: <alert rules file>, env_example: .env.example }
 make harness-coverage      # gaps before you start
-make harness-selftest      # sensors fire on seeded defects (make harness-selftest-live: network sensors)
+make harness-selftest      # sensors fire on seeded defects (+ harness-selftest-live / -host: network, docker)
 make harness-fast          # first real run; read .harness/report.md
 ```
 

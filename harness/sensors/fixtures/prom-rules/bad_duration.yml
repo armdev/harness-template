@@ -1,0 +1,7 @@
+# expect: not a valid duration string
+groups:
+  - name: seeded
+    rules:
+      - alert: DurationInWords
+        expr: up == 0
+        for: five minutes
