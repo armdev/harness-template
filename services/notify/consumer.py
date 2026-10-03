@@ -1,6 +1,7 @@
-"""Kafka consumer that keeps search.documents in step with content.post.created.
+"""Kafka consumer that records one notification per content.post.created event.
 
-At-least-once: the offset is committed only after the row is written; the upsert makes redelivery harmless.
+At-least-once: the offset is committed only after the row is written; post_id is the primary key and the insert
+does nothing on conflict, so a redelivered event never notifies twice.
 """
 from __future__ import annotations
 
@@ -13,21 +14,20 @@ from psycopg_pool import ConnectionPool
 
 log = logging.getLogger(__name__)
 
-UPSERT = """
-INSERT INTO search.documents (post_id, title, body, author, tags)
-VALUES (%(id)s, %(title)s, %(body)s, %(author)s, %(tags)s)
-ON CONFLICT (post_id) DO UPDATE
-   SET title = EXCLUDED.title, body = EXCLUDED.body, author = EXCLUDED.author, tags = EXCLUDED.tags
+INSERT = """
+INSERT INTO notify.outbox (post_id, author, created_at)
+VALUES (%(id)s, %(author)s, %(created_at)s)
+ON CONFLICT (post_id) DO NOTHING
 """
 
 
-class Indexer:
+class Notifier:
     def __init__(self, pool: ConnectionPool, bootstrap: str, topic: str):
         self.pool, self.topic = pool, topic
-        self.consumer = Consumer({"bootstrap.servers": bootstrap, "group.id": "search",
+        self.consumer = Consumer({"bootstrap.servers": bootstrap, "group.id": "notify",
                                   "auto.offset.reset": "earliest", "enable.auto.commit": False})
         self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._run, name="indexer", daemon=True)
+        self._thread = threading.Thread(target=self._run, name="notifier", daemon=True)
 
     def start(self) -> None:
         self.consumer.subscribe([self.topic])
@@ -48,14 +48,13 @@ class Indexer:
                     log.warning("kafka: %s", msg.error())
                 continue
             try:
-                doc = json.loads(msg.value())
-                doc.setdefault("tags", [])               # events published before tags existed
+                event = json.loads(msg.value())
                 with self.pool.connection() as conn:
-                    conn.execute(UPSERT, doc)
+                    conn.execute(INSERT, event)
             except (ValueError, KeyError) as e:
                 log.error("skipping malformed event at offset %s: %s", msg.offset(), e)
             except Exception:
-                log.exception("indexing failed at offset %s; will retry", msg.offset())
+                log.exception("recording failed at offset %s; will retry", msg.offset())
                 self.consumer.seek(TopicPartition(msg.topic(), msg.partition(), msg.offset()))
                 self._stop.wait(2)                # database down: back off, then redeliver the same event
                 continue

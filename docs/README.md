@@ -12,6 +12,9 @@ Mermaid, отображается прямо на GitHub.
 | 4 | [Implemented architecture](en/04-architecture.md) | [Реализованная архитектура](ru/04-architecture.md) | planes, stages, feedback loops, reference system, decisions · плоскости, стадии, контуры, эталонная система, решения |
 | 5 | [Components](en/05-components.md) | [Компоненты](ru/05-components.md) | every component, its responsibility, inputs and outputs · каждый компонент, ответственность, входы и выходы |
 | 6 | [Low-level design](en/06-low-level-design.md) | [Низкоуровневый дизайн](ru/06-low-level-design.md) | runner algorithms, file formats, rules, protocols, schema, sequences · алгоритмы, форматы, правила, протоколы, схема, последовательности |
+| 7 | [Demo](en/07-demo.md) | [Демо](ru/07-demo.md) | walkthrough GIF and screenshots of a real run · GIF-обзор и скриншоты реального запуска |
+
+![air-harness demo](assets/demo-en.gif)
 
 **Quick start · Быстрый старт**
 

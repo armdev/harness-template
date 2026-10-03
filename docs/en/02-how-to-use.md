@@ -32,6 +32,8 @@ After `./run.sh` you get:
 | http://localhost:9090 · `/targets` · `/alerts` | Prometheus |
 | http://localhost:11434/v1 | local LLM (with `--llm`) |
 
+![run.sh prints every URL and the next steps](../assets/terminal-run-urls.png)
+
 Internal services (`content`, `search`, PostgreSQL, Kafka) have no host port by design; `run.sh` prints the
 command to reach each one (e.g. `docker compose exec postgres psql -U postgres -d air_harness`).
 
@@ -156,6 +158,6 @@ Without an LLM it reports **BLIND**, which never blocks.
 | host plane needs PyYAML | `pip install pyyaml` |
 | start from scratch | `make purge`, then `./run.sh` |
 
-`./help.sh troubleshoot` prints the same list.
+`./help.sh troubleshoot` prints the same list. Screenshots of every step: [Demo](07-demo.md).
 
 Next: [Use cases](03-use-cases.md)

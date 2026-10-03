@@ -3,7 +3,7 @@
 air-harness has two halves that live in one repository:
 
 1. **The harness** — guides and sensors that regulate a coding agent.
-2. **The reference system** — the application the harness regulates (gateway, content, search on PostgreSQL
+2. **The reference system** — the application the harness regulates (gateway, content, search, notify on PostgreSQL
    and Kafka). It exists so every sensor has real code to observe; in your own project it is replaced by your
    services.
 
@@ -95,18 +95,22 @@ flowchart LR
     client([Client / contract tests / eval]) -->|HTTP :8080| gw[gateway<br/>public API]
     gw -->|signed Ed25519| content[content<br/>owns posts]
     gw -->|signed Ed25519| search[search<br/>full-text index]
+    gw -->|signed Ed25519| notify[notify<br/>notification outbox]
     content -->|content.post.created| kafka[(Kafka<br/>KRaft)]
     kafka -->|consumer group 'search'| search
+    kafka -->|consumer group 'notify'| notify
     content -->|content_svc · schema content| pg[(PostgreSQL)]
     search -->|search_svc · schema search| pg
-    prom[Prometheus] -.->|scrape /metrics| gw & content & search
+    notify -->|notify_svc · schema notify| pg
+    prom[Prometheus] -.->|scrape /metrics| gw & content & search & notify
 ```
 
 | Service | Responsibility | Exposed | Data | Trusts |
 |---|---|---|---|---|
 | gateway | public HTTP API; validates and forwards; holds no data | host `:8080` | — | (public) |
-| content | creates and reads posts; publishes `content.post.created` | internal `:8000` | `content.posts` (role `content_svc`) | gateway |
-| search | indexes events; full-text search with author filter | internal `:8000` | `search.documents` (role `search_svc`) | gateway |
+| content | creates, reads and lists posts (with tags); publishes `content.post.created` | internal `:8000` | `content.posts` (role `content_svc`) | gateway |
+| search | indexes events; full-text search with author and tag filters | internal `:8000` | `search.documents` (role `search_svc`) | gateway |
+| notify | records one notification per new post (stand-in for e-mail); lists them | internal `:8000` | `notify.outbox` (role `notify_svc`) | gateway |
 
 ### Cross-cutting decisions
 
@@ -131,9 +135,9 @@ flowchart TB
     pg -->|healthy| mig[migrate · Flyway<br/>one-shot]
     kf -->|healthy| ki[kafka-init<br/>one-shot]
     sk[service-keys<br/>one-shot]
-    sk & mig & ki -->|completed| content & search
+    sk & mig & ki -->|completed| content & search & notify
     sk --> gw[gateway]
-    content & search -->|healthy| gw
+    content & search & notify -->|healthy| gw
 ```
 
 Optional profiles: `observability` (Prometheus), `local-llm` (Ollama), `tools` (contract, unit, eval

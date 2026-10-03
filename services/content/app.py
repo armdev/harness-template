@@ -5,12 +5,13 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Annotated
 
 from confluent_kafka import Producer
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from common.service_auth import require_caller
 from common.telemetry import create_app
@@ -37,10 +38,15 @@ app = create_app("content", lifespan=lifespan)
 auth = require_caller()
 
 
+AUTHOR_PATTERN = r"^[A-Za-z0-9._-]+$"
+Tag = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]{1,32}$")]
+
+
 class PostIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=20000)
-    author: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    author: str = Field(min_length=1, max_length=64, pattern=AUTHOR_PATTERN)
+    tags: list[Tag] = Field(default_factory=list, max_length=5)
 
 
 class Post(PostIn):
@@ -48,12 +54,17 @@ class Post(PostIn):
     created_at: datetime
 
 
+class AuthorPosts(BaseModel):
+    author: str
+    posts: list[Post]
+
+
 @app.post("/posts", status_code=201, response_model=Post)
 def create_post(post: PostIn, caller: str = Depends(auth)) -> Post:
     with pool.connection() as conn:
         row = conn.execute(
-            "INSERT INTO content.posts (title, body, author) VALUES (%s, %s, %s) RETURNING id, created_at",
-            (post.title, post.body, post.author),
+            "INSERT INTO content.posts (title, body, author, tags) VALUES (%s, %s, %s, %s) RETURNING id, created_at",
+            (post.title, post.body, post.author, post.tags),
         ).fetchone()
     created = Post(**post.model_dump(), **row)
     producer.produce(TOPIC, key=str(created.id), value=created.model_dump_json())
@@ -68,8 +79,22 @@ def create_post(post: PostIn, caller: str = Depends(auth)) -> Post:
 def get_post(post_id: int, _caller: str = Depends(auth)) -> Post:
     with pool.connection() as conn:
         row = conn.execute(
-            "SELECT id, title, body, author, created_at FROM content.posts WHERE id = %s", (post_id,)
+            "SELECT id, title, body, author, tags, created_at FROM content.posts WHERE id = %s", (post_id,)
         ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="post not found")
     return Post(**row)
+
+
+@app.get("/posts", response_model=AuthorPosts)
+def list_posts(author: str = Query(min_length=1, max_length=64, pattern=AUTHOR_PATTERN),
+               limit: int = Query(20, ge=1, le=50), _caller: str = Depends(auth)) -> AuthorPosts:
+    with pool.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, title, body, author, tags, created_at FROM content.posts
+             WHERE author = %s ORDER BY created_at DESC, id DESC LIMIT %s
+            """,
+            (author, limit),
+        ).fetchall()
+    return AuthorPosts(author=author, posts=[Post(**r) for r in rows])

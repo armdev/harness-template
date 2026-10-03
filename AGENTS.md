@@ -4,9 +4,11 @@ You are working in a Python microservice system run by one `docker-compose.yml`.
 architecture: services, their identities, who may call whom, and which database role each one uses.
 
 ```
-client ──HTTP──> gateway ──signed──> content ──Kafka: content.post.created──> search
-                    └─────signed──────────────────────────────────────────────> search
-                 content ─ postgres (content_svc, schema content)    search ─ postgres (search_svc, schema search)
+client ──HTTP──> gateway ──signed──> content ──Kafka: content.post.created──┬──> search
+                    ├─────signed──────────────────────────────────────────────┼──> search
+                    └─────signed──────────────────────────────────────────────└──> notify
+        content, search, notify ─ postgres: one role and schema each (content_svc/content, search_svc/search,
+                                  notify_svc/notify)
 ```
 
 ## Structure you must preserve

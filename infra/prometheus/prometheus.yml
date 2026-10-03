@@ -11,3 +11,5 @@ scrape_configs:
     static_configs: [{ targets: ["content:8000"] }]
   - job_name: search
     static_configs: [{ targets: ["search:8000"] }]
+  - job_name: notify
+    static_configs: [{ targets: ["notify:8000"] }]

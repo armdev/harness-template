@@ -40,6 +40,7 @@ class Hit(BaseModel):
     id: int
     title: str
     author: str
+    tags: list[str]
     score: float
 
 
@@ -50,16 +51,18 @@ class Results(BaseModel):
 
 @app.get("/search", response_model=Results)
 def search(q: str = Query(min_length=1, max_length=200), author: str | None = None,
+           tag: str | None = Query(None, pattern=r"^[a-z0-9-]{1,32}$"),
            limit: int = Query(10, ge=1, le=50), _caller: str = Depends(auth)) -> Results:
     with pool.connection() as conn:
         rows = conn.execute(
             """
-            SELECT post_id AS id, title, author, ts_rank_cd(tsv, query) AS score
+            SELECT post_id AS id, title, author, tags, ts_rank_cd(tsv, query) AS score
               FROM search.documents, websearch_to_tsquery('english', %(q)s) AS query
              WHERE tsv @@ query AND (%(author)s::text IS NULL OR author = %(author)s)
+               AND (%(tag)s::text IS NULL OR %(tag)s = ANY (tags))
              ORDER BY score DESC, post_id DESC
              LIMIT %(limit)s
             """,
-            {"q": q, "author": author, "limit": limit},
+            {"q": q, "author": author, "tag": tag, "limit": limit},
         ).fetchall()
     return Results(query=q, hits=[Hit(**r) for r in rows])

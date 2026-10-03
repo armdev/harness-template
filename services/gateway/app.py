@@ -21,6 +21,7 @@ clients: dict[str, SignedClient] = {}
 async def lifespan(_app):
     clients["content"] = SignedClient(os.environ["CONTENT_URL"])
     clients["search"] = SignedClient(os.environ["SEARCH_URL"])
+    clients["notify"] = SignedClient(os.environ["NOTIFY_URL"])
     yield
     for c in clients.values():
         c.close()
@@ -30,7 +31,8 @@ app = create_app("gateway", lifespan=lifespan, description=(
     "Public API of air-harness. Every call is forwarded, signed as `gateway`, to the service that owns the data. "
     "The contract suite in `contract/` is the specification of this API."))
 
-POST_EXAMPLE = {"title": "Hello air-harness", "body": "My first post, searchable in a second.", "author": "me"}
+POST_EXAMPLE = {"title": "Hello air-harness", "body": "My first post, searchable in a second.", "author": "me",
+                "tags": ["intro"]}
 
 
 async def forward(service: str, method: str, path: str, **kw) -> Response:
@@ -53,6 +55,12 @@ async def create_post(post: dict = Body(examples=[POST_EXAMPLE])) -> Response:  
     return await forward("content", "POST", "/posts", json=post)
 
 
+@app.get("/api/posts", summary="List one author's posts, newest first")
+async def list_posts(author: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
+                     limit: int = Query(20, ge=1, le=50)) -> Response:
+    return await forward("content", "GET", "/posts", params={"author": author, "limit": limit})
+
+
 @app.get("/api/posts/{post_id}", summary="Read a post")
 async def get_post(post_id: int) -> Response:
     return await forward("content", "GET", f"/posts/{post_id}")
@@ -60,6 +68,13 @@ async def get_post(post_id: int) -> Response:
 
 @app.get("/api/search", summary="Full-text search over posts (indexed asynchronously via Kafka)")
 async def search(q: str = Query(min_length=1, max_length=200), author: str | None = None,
+                 tag: str | None = Query(None, pattern=r"^[a-z0-9-]{1,32}$"),
                  limit: int = Query(10, ge=1, le=50)) -> Response:
-    params = {"q": q, "limit": limit} | ({"author": author} if author else {})
+    params = {"q": q, "limit": limit} | ({"author": author} if author else {}) | ({"tag": tag} if tag else {})
     return await forward("search", "GET", "/search", params=params)
+
+
+@app.get("/api/notifications", summary="Notifications recorded for an author's posts, newest first")
+async def notifications(author: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
+                        limit: int = Query(20, ge=1, le=50)) -> Response:
+    return await forward("notify", "GET", "/outbox", params={"author": author, "limit": limit})

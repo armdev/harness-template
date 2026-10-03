@@ -60,3 +60,23 @@ groups:
         for: 10m
         labels: { severity: ticket }
         annotations: { summary: "search: p95 latency above 500 ms" }
+  - name: notify
+    rules:
+      - alert: NotifyDown
+        expr: up{job="notify"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "notify is not being scraped" }
+      - alert: NotifyHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="notify",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="notify"}[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "notify: more than 5% of requests fail" }
+      - alert: NotifyHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="notify"}[5m]))) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "notify: p95 latency above 500 ms" }
