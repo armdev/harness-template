@@ -86,7 +86,7 @@ Tools for trusting and steering the harness:
 | Command | Purpose |
 |---|---|
 | `make harness-selftest` | every sensor fires on its seeded defects and stays quiet on clean fixtures |
-| `make harness-selftest-live` | the same for the live-plane sensors that need network (`deps-audit`); CI runs it nightly |
+| `make harness-selftest-live` | the same for the live-plane sensors: `deps-audit` (network) and, with an LLM configured, `review-agent` (seeded diffs breaking R3 and R4 must be flagged, a clean diff must not; SKIP without an LLM); CI runs it nightly |
 | `make harness-selftest-host` | the same for the host-plane sensors, stack up: `prom-rules` (broken PromQL, bad durations), `eval` (a baseline the search misses must fail, a drop inside the tolerance must not), `unit` (mutants of `libs/common` — unverified signatures, ignored `TRUSTED_CALLERS`, no clock-skew check, a commit after a failed handler — must each turn a named test red), `contract` (a second gateway built from a mutant — author filter dropped, tag filter dropped, every upstream status turned into 200 — must fail a named contract test); `./run.sh --check` and CI run it |
 | `make harness-coverage` | guide × sensor matrix: rules nobody checks, lessons nobody teaches, broken manifest entries |
 | `make harness-stats` | from the ledger: what fires often (weak guide), never fires, is blind |

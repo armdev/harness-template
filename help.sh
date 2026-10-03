@@ -73,7 +73,7 @@ topic_harness() {
   kv "make harness-list" "all sensors with stage, plane, blocking, command"
   h "Trust the harness"
   kv "make harness-selftest" "every sensor fires on its seeded defects and stays quiet on clean fixtures"
-  kv "make harness-selftest-live" "the same for live-plane sensors (deps-audit; needs network)"
+  kv "make harness-selftest-live" "the same for live-plane sensors (deps-audit; review-agent when an LLM is set)"
   kv "make harness-selftest-host" "the same for host-plane sensors (prom-rules, unit, contract, eval; stack up, PyYAML)"
   kv "make harness-coverage" "guides × sensors: rules nobody checks, lessons nobody teaches"
   kv "make harness-stats" "steering loop: what fires often (weak guide), what never fires, what is blind"

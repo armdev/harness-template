@@ -1,0 +1,13 @@
+diff --git a/services/notify/consumer.py b/services/notify/consumer.py
+--- a/services/notify/consumer.py
++++ b/services/notify/consumer.py
+@@ -14,5 +14,9 @@ ON CONFLICT (post_id) DO NOTHING
+ 
+ 
+ def record_notification(pool: ConnectionPool, event: dict) -> None:
+     with pool.connection() as conn:
++        title = conn.execute("SELECT title FROM content.posts WHERE id = %s", (event["id"],)).fetchone()
++        if title is None:
++            return
++        event["title"] = title[0]
+         conn.execute(INSERT, event)

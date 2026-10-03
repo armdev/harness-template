@@ -10,6 +10,7 @@ What is reviewed (REVIEW_DIFF_BASE):
   empty      staged changes; if nothing is staged, the working tree against HEAD plus untracked files
              (so the post-edit hook of a coding agent sees its uncommitted work)
   <rev>      everything since <rev>, e.g. origin/main in CI
+REVIEW_DIFF_FILE, when set, is reviewed instead (the selftest feeds seeded diffs from harness/sensors/fixtures/review).
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ MODEL = os.environ.get("REVIEW_MODEL") or os.environ.get("LLM_MODEL", "qwen3:8b"
 KEY = os.environ.get("LLM_API_KEY", "not-needed")
 NO_THINK = os.environ.get("LLM_NO_THINK", "true").lower() == "true"
 DIFF_BASE = os.environ.get("REVIEW_DIFF_BASE", "")
+DIFF_FILE = os.environ.get("REVIEW_DIFF_FILE", "")
 MAX_DIFF = int(os.environ.get("REVIEW_MAX_DIFF_CHARS", "60000"))
 RUBRIC = Path(os.environ.get("REVIEW_RUBRIC", "harness/review/RUBRIC.md"))
 PROMPT = Path(os.environ.get("REVIEW_PROMPT", "harness/prompts/review.md"))
@@ -39,6 +41,8 @@ def git(*args: str) -> str:
 
 
 def collect_diff() -> str:
+    if DIFF_FILE:
+        return Path(DIFF_FILE).read_text()
     if DIFF_BASE:
         return git("diff", "--unified=5", DIFF_BASE, "--", *SCOPE)
     staged = git("diff", "--unified=5", "--cached", "--", *SCOPE)

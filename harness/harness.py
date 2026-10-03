@@ -211,6 +211,9 @@ def cmd_selftest(a: argparse.Namespace) -> int:
             expect = fixture_expectation(fx)
             cmd = st["run"].replace("{fixture}", str(fx.relative_to(ROOT)))   # not .format(): commands use ${VAR:-x}
             _, code, out, _ = execute(cmd)
+            if code == SKIPPED_RC:                       # not configured (e.g. no LLM): nothing to prove here
+                print(f"[ skip  ] {s['id']:22} {fx.name} — not configured: {out.strip().splitlines()[-1][:90]}")
+                continue
             if expect == "clean":
                 ok, label = code == 0, "quiet" if code == 0 else "NOISY"
             else:
