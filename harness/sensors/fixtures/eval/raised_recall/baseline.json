@@ -1,0 +1,1 @@
+{"corpus": "v1", "metrics": {"recall@5": 0.95, "mrr@10": 1.0}, "note": "seeded defect: a baseline the current ranking misses by 0.075 (> tolerance 0.05)"}

@@ -111,7 +111,7 @@ flowchart TD
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.3.3 }
+template: { name: py-services-pg-kafka, version: 0.3.4 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <уникальный>             # на него ссылается sensors.pairs_with
@@ -135,7 +135,7 @@ sensors:
 
 ## 6.3 Контейнеры сенсоров (`compose.harness.yml`, `harness.mk`)
 
-Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.3}`, профиль `harness`,
+Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.4}`, профиль `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (make подставляет вызвавшего пользователя), `read_only: true`,
 `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, репозиторий в `/work:ro` и `./.harness` в `/out`.
 
@@ -392,7 +392,9 @@ One-shot `migrate` запускает Flyway с `FLYWAY_CONNECT_RETRIES=30`; п�
      judge@1 = Σ оценок / (3 · число оценённых)
 4. Регрессия = recall@5 или MRR@10 < baseline − `EVAL_TOLERANCE` (0.05) → код 1 (сенсор блокирующий).
    Падение judge@1 печатается и помечается `drop (advisory)`; запуск оно не роняет.
-5. Пишет `$EVAL_OUT/eval-results.json` (осознанно переносится в `eval/baseline.json`) и `eval-report.md`.
+5. `EVAL_BASELINE` (по умолчанию `eval/baseline.json`) позволяет selftest harness сравнить поиск с засеянными
+   baseline из `harness/sensors/fixtures/eval/`.
+6. Пишет `$EVAL_OUT/eval-results.json` (осознанно переносится в `eval/baseline.json`) и `eval-report.md`.
 
 ## 6.13 `run.sh`
 
@@ -419,7 +421,7 @@ flowchart TD
 
 Триггеры: pull request, push в `main`, ночью (03:17 UTC), вручную. Один джоб на `ubuntu-latest`:
 checkout (полная история) → setup-python 3.12 + PyYAML, `DATA_DIR=$RUNNER_TEMP/air-harness-data` →
-`make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest`, `harness-selftest-host` → `make harness-static` →
+`make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest` → `make harness-static` →
 ночью: `make harness-selftest-live`, `make harness-continuous`; иначе `./run.sh --full` → отчёт и отчёт eval в сводку джоба → логи сервисов
 при провале → `.harness/` как артефакт → `make clean`. `MIGRATIONS_BASE` — `origin/<базовая ветка>` для
 pull request и `HEAD~1` для push.
@@ -441,7 +443,7 @@ pull request и `HEAD~1` для push.
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | пусто (ревью пропускается), `qwen3:8b` | агент-ревьюер (включается явно) |
 | `REVIEW_DIFF_BASE` | пусто | что именно ревьюит ревьюер |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, пусто | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.3, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.4, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
 Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).

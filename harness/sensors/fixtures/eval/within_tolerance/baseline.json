@@ -1,0 +1,1 @@
+{"corpus": "v1", "metrics": {"recall@5": 0.9, "mrr@10": 1.0}, "note": "a drop of 0.025 is inside the tolerance: must stay quiet"}
