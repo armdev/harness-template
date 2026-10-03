@@ -17,6 +17,7 @@ that only calls others.
    `service-keys` (and `migrate`, `kafka-init` when used).
 3. **Identity**: append `<name>` to the `service-keys` entrypoint list; mount the `service-keys` volume twice,
    `subpath: <name>` at `/run/keys/self` and `subpath: public` at `/run/keys/public` (both `read_only`).
+   The `public` mount is what lets it verify its callers; without it every call is rejected with 401 (T10).
 4. **Who may call it**: `TRUSTED_CALLERS` on the new service; add the new service to the `TRUSTED_CALLERS`
    of every service it calls. Declare each call as `<CALLEE>_URL: http://<callee>:8000` so the call graph stays
    declarative (topology T1/T2 read it), and call through `common.service_auth.SignedClient(os.environ["<CALLEE>_URL"])`.
@@ -33,4 +34,5 @@ that only calls others.
 
 Checklist the topology sensor enforces: T1 (trusted caller), T2 (key provisioned and mounted), T3 (one default
 per variable), T4 (waits for migrate), T5 (waits for kafka-init), T6 (pinned images), T7 (alerts), T8 (variable
-in `.env.example`), T9 (no writable bind mount into the repo).
+in `.env.example`), T9 (no writable bind mount into the repo), T10 (a service with `TRUSTED_CALLERS` mounts the
+public keys, or it can verify no one).

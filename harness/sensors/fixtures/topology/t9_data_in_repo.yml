@@ -24,6 +24,7 @@ services:
       DB_DSN: postgresql://store_svc@postgres/db
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, volume: { subpath: store } }
+      - { type: volume, source: service-keys, target: /run/keys/public, volume: { subpath: public } }
     depends_on:
       migrate: { condition: service_completed_successfully }
   db:

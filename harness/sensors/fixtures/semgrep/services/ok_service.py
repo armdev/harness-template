@@ -12,3 +12,9 @@ def get_post(conn, post_id):
     log.info("loading post %s", post_id)
     row = conn.execute("SELECT id, title FROM content.posts WHERE id = %s", (post_id,)).fetchone()
     return row or content.get(f"/posts/{post_id}").json()
+
+
+def consumer(bootstrap):
+    from confluent_kafka import Consumer
+
+    return Consumer({"bootstrap.servers": bootstrap, "group.id": "ok", "enable.auto.commit": False})

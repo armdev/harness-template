@@ -93,3 +93,50 @@ def test_coverage_is_clean_for_the_real_manifest(runner, monkeypatch):
     root = Path(__file__).resolve().parents[2]
     monkeypatch.setattr(runner, "ROOT", root)
     assert runner.cmd_coverage(argparse.Namespace()) == 0
+
+
+SKIP_MANIFEST = {
+    "harness": 1,
+    "categories": ["maintainability"],
+    "guides": [{"id": "g", "path": "GUIDE.md", "kind": "inferential", "category": ["maintainability"]}],
+    "sensors": [
+        {"id": "optional-llm", "kind": "inferential", "category": "maintainability", "plane": "static",
+         "stages": ["pre-commit"], "blocking": False, "pairs_with": ["g"],
+         "run": "echo 'review: skipped, no LLM configured (set LLM_BASE_URL)'; exit 125"},
+        {"id": "must-run", "kind": "computational", "category": "maintainability", "plane": "static",
+         "stages": ["pre-commit"], "pairs_with": ["g"], "run": "exit 125"},
+    ],
+}
+
+
+def test_exit_125_is_skipped_for_advisory_and_blind_for_blocking(runner, tmp_path):
+    setup(tmp_path, SKIP_MANIFEST)
+    assert runner.cmd_run(run_args(only="optional-llm")) == 0          # skipped never fails the stage
+    report = (tmp_path / ".harness" / "report.md").read_text()
+    assert "## Skipped (not configured)" in report and "set LLM_BASE_URL" in report
+    assert "## Blind sensors" not in report
+    assert runner.cmd_run(run_args(only="must-run")) == 1              # a blocking sensor cannot opt out
+    ledger = [json.loads(x) for x in (tmp_path / ".harness" / "ledger.jsonl").read_text().splitlines()]
+    assert [r["status"] for r in ledger] == ["skipped", "unavailable"]
+
+
+def test_stats_ignore_skipped_runs(runner, tmp_path, capsys):
+    out = tmp_path / ".harness"
+    out.mkdir()
+    rows = [{"id": "optional-llm", "status": "skipped", "seconds": 0.1}] * 5 + \
+           [{"id": "optional-llm", "status": "fail", "seconds": 1.0}]
+    (out / "ledger.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    assert runner.cmd_stats(argparse.Namespace(min_runs=20)) == 0
+    line = next(ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("optional-llm"))
+    cols = line.split()
+    assert cols[1:5] == ["1", "1", "100%", "0"] and cols[6] == "5"      # runs, fired, rate, blind, …, skipped
+
+
+def test_review_without_llm_is_skipped(monkeypatch, capsys, tmp_path):
+    from conftest import HARNESS, load
+
+    monkeypatch.setenv("LLM_BASE_URL", "")
+    review = load("review_skip", HARNESS / "sensors" / "review.py")
+    monkeypatch.setattr(review, "collect_diff", lambda: "diff --git a/x b/x\n+change\n")
+    assert review.main() == 125
+    assert "LLM_BASE_URL" in capsys.readouterr().out

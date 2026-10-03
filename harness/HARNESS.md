@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.2.0
+# Harness template `py-services-pg-kafka` v0.3.0
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.
@@ -27,11 +27,11 @@ and it is packaged so that it can be versioned, instantiated and measured like a
 
 | id | plane | stages | blocking | what it proves |
 |---|---|---|---|---|
-| `topology` | static | pre-commit, pipeline | yes | compose is internally consistent: T1 trusted callers, T2 keys, T3 default drift, T4 migrate-first, T5 topics-first, T6 pinned images, T7 alerts, T8 documented env, T9 no data in the repo |
+| `topology` | static | pre-commit, pipeline | yes | compose is internally consistent: T1 trusted callers, T2 keys, T3 default drift, T4 migrate-first, T5 topics-first, T6 pinned images, T7 alerts, T8 documented env, T9 no data in the repo, T10 callees can verify signatures |
 | `migrations` | static | pre-commit, pipeline | yes | Flyway history is append-only, well named, and every table is granted |
 | `ruff` | static | pre-commit, pipeline | yes | lint (incl. bandit-style `S`, blind excepts) |
-| `semgrep-local` | static | pre-commit, pipeline | yes | organisation rules: parameterised SQL, TLS on, no DDL in code, logging, signed calls only |
-| `review-agent` | live | pre-commit | no | rubric applied to the diff by an LLM |
+| `semgrep-local` | static | pre-commit, pipeline | yes | organisation rules: parameterised SQL, TLS on, no DDL in code, logging, signed calls only, Kafka consumers commit after the write |
+| `review-agent` | live | pre-commit | no | rubric applied to the diff by an LLM (opt-in: SKIPPED without `LLM_BASE_URL`) |
 | `unit` | host | integration, pipeline | yes | `libs/` unit tests |
 | `contract` | host | integration, pipeline | yes | the public API behaves as specified (stack up) |
 | `eval` | host | pipeline | no | search quality vs. `eval/baseline.json` (+ optional LLM judge) |
@@ -41,8 +41,8 @@ and it is packaged so that it can be versioned, instantiated and measured like a
 
 ### Sensor contract
 
-A sensor is any command. Exit 0 = pass, 126/127 = blind (the runner reports it as a harness problem, never as
-a code failure), anything else = fail. Findings are one per line starting with `ERROR` or `WARN`, followed by
+A sensor is any command. Exit 0 = pass, 125 = skipped (not configured; advisory sensors only), 126/127 = blind
+(the runner reports it as a harness problem, never as a code failure), anything else = fail. Findings are one per line starting with `ERROR` or `WARN`, followed by
 indented `what:` and `fix:` lines; `WARN` lines of a passing sensor still reach the report. Seeded defects
 start with `# expect: <text the sensor must print>` or `# expect: clean`.
 

@@ -34,13 +34,15 @@ flowchart TD
     C -->|0| P[pass]
     C -->|126 / 127| U["unavailable → BLIND"]
     C -->|таймаут| T["timeout → BLIND"]
+    C -->|125| K["skipped → SKIP<br/>только рекомендательные; блокирующий → BLIND"]
     C -->|другой| F[fail]
-    P & U & T & F --> W["запись results/ID.json<br/>дописать ledger.jsonl"]
+    P & U & T & F & K --> W["запись results/ID.json<br/>дописать ledger.jsonl"]
     W --> R["запись report.md<br/>объединение последних результатов стадии"]
 ```
 
-Сенсор — **любая команда**. Контракт: код 0 = пройдено; 126/127 = не может запуститься (раннер сообщает BLIND,
-а не ошибку кода); любой другой = провал. Замечания печатаются по одному на строку, начиная с `ERROR` или `WARN`,
+Сенсор — **любая команда**. Контракт: код 0 = пройдено; 125 = намеренно не настроен здесь (например, нет LLM) — раннер
+сообщает SKIP, что никогда не роняет стадию, но только для рекомендательных сенсоров (блокирующий сенсор с кодом 125
+считается BLIND); 126/127 = не может запуститься (BLIND, а не ошибка кода); любой другой = провал. Замечания печатаются по одному на строку, начиная с `ERROR` или `WARN`,
 далее идут строки `what:` / `fix:` с отступом. Строки `WARN` (и две следующие строки с отступом) у *прошедшего*
 сенсора всё равно попадают в отчёт.
 
@@ -53,7 +55,7 @@ flowchart TD
  "output": "<последние HARNESS_TAIL_LINES строк>", "warnings": ["WARN T6 ...\n      what: ...\n      fix: ..."]}
 ```
 
-`status` ∈ `pass | fail | unavailable | timeout`. **Журнал** (`.harness/ledger.jsonl`) дописывает ту же запись
+`status` ∈ `pass | fail | unavailable | timeout | skipped`. **Журнал** (`.harness/ledger.jsonl`) дописывает ту же запись
 без `output` и `warnings`, по одной строке на запуск.
 
 ### Отчёт — `.harness/report.md`
@@ -68,9 +70,10 @@ flowchart TD
    `python3 harness/harness.py …` для плоскости host), хвост вывода.
 3. *Advisory findings* — то же для неблокирующих провалов.
 4. *Blind sensors* — статус и первые 300 символов вывода.
-5. *Warnings* — блоки WARN прошедших сенсоров.
-6. *Not run in this stage yet* — объявленные сенсоры без результата (например, другая плоскость).
-7. *Passed*.
+5. *Skipped (not configured)* — последняя строка вывода сенсора, где сказано, как его включить.
+6. *Warnings* — блоки WARN прошедших сенсоров.
+7. *Not run in this stage yet* — объявленные сенсоры без результата (например, другая плоскость).
+8. *Passed*.
 
 Результат, чей `rev` отличается от текущей ревизии, помечается **stale** (устаревший).
 
@@ -98,7 +101,9 @@ flowchart TD
 
 ### Stats — подсказки управления
 
-По каждому сенсору: запуски, срабатывания (= провалы), доля, слепые запуски, среднее время. Порядок подсказок:
+По каждому сенсору: запуски, срабатывания (= провалы), доля, слепые запуски, среднее время, пропуски. Пропущенные
+запуски считаются отдельно и не входят ни в одну долю (сенсор, который только пропускался, помечается *never ran*).
+Порядок подсказок:
 *слеп > 20 %* → чинить окружение; *доля > 30 %* → усилить связанный гайд; *ни разу не сработал за ≥ `--min-runs`
 запусков* → запустить selftest, понизить или удалить.
 
@@ -106,7 +111,7 @@ flowchart TD
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.2.0 }
+template: { name: py-services-pg-kafka, version: 0.3.0 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <уникальный>             # на него ссылается sensors.pairs_with
@@ -130,7 +135,7 @@ sensors:
 
 ## 6.3 Контейнеры сенсоров (`compose.harness.yml`, `harness.mk`)
 
-Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.2.0}`, профиль `harness`,
+Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.0}`, профиль `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (make подставляет вызвавшего пользователя), `read_only: true`,
 `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, репозиторий в `/work:ro` и `./.harness` в `/out`.
 
@@ -149,7 +154,7 @@ sensors:
 `SafeLoader` (слияния `<<` раскрыты, `depends_on` — итоговый), а сырой текст сканируется на переменные
 (комментарии удалены). Пути для T7/T8 берутся из самого compose-файла: `x-harness: {alerts, env_example}`.
 Сервисы в dev-профиле (`TOPOLOGY_DEV_PROFILES`, по умолчанию `admin,local-llm,e2e,tools`) — это инструменты, и
-правила T1, T4–T7, T9 их пропускают.
+правила T1, T4–T7, T9, T10 их пропускают.
 
 | Правило | Уровень | Проверка |
 |---|---|---|
@@ -162,6 +167,7 @@ sensors:
 | T7 alerts-present | ERROR | у каждого долгоживущего (задан `restart`), собираемого сервиса без профиля есть `job="<name>"` в файле алертов |
 | T8 env-documented | ERROR | каждая `${VAR}`, которую читает compose, есть строкой `VAR=` в примере env |
 | T9 data-outside-repo | ERROR | нет bind-монтирования из репозитория (`./…`) с правом записи |
+| T10 callee-verifies | ERROR | сервис с `TRUSTED_CALLERS` монтирует подпуть `public` тома `service-keys`; без него он не может проверить ни одну подпись и отвечает 401 на каждый вызов (проверяется, если есть `service-keys`) |
 
 Формат вывода: `SEV  RULE  место` / `what:` / `fix:`; последняя строка — `topology: N services, E errors, W warnings`.
 
@@ -193,7 +199,8 @@ sequenceDiagram
 ```
 
 Область: `services libs db contract docker-compose.yml infra`. Если задан `REVIEW_DIFF_BASE` → `git diff <base>`.
-Недоступный эндпоинт или ответ без JSON-объекта → код 127 (BLIND). `LLM_NO_THINK=true` отправляет
+Пустой `LLM_BASE_URL` (по умолчанию: ревью включается явно) → код 125 (SKIP, с подсказкой, как включить).
+Настроенный, но недоступный эндпоинт или ответ без JSON-объекта → код 127 (BLIND). `LLM_NO_THINK=true` отправляет
 `chat_template_kwargs.enable_thinking=false` (серверы без поддержки игнорируют). Схема замечания:
 `{severity: ERROR|WARN, rule, file, line, what, fix}`.
 
@@ -420,10 +427,10 @@ pull request и `HEAD~1` для push.
 | `LOG_LEVEL` | `INFO` | сервисы |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | куча брокера |
 | `*_TAG` | закреплены | версии образов |
-| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | Ollama на хосте, `qwen3:8b` | агент-ревьюер |
+| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | пусто (ревью пропускается), `qwen3:8b` | агент-ревьюер (включается явно) |
 | `REVIEW_DIFF_BASE` | пусто | что именно ревьюит ревьюер |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, пусто | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.2.0, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.0, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
 Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).

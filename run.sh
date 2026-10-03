@@ -197,8 +197,10 @@ smoke_test || status=1
 
 if [ $LLM = 1 ]; then
   title "Local LLM for the review agent ($LLM_MODEL)"
-  run make -s llm LLM_MODEL="$LLM_MODEL" && ok "model ready on http://$HOST:$OLLAMA_PORT/v1 — the review agent reaches it through the host port (LLM_BASE_URL default)" \
+  export LLM_BASE_URL="${LLM_BASE_URL:-$(env_value LLM_BASE_URL http://host.docker.internal:$OLLAMA_PORT/v1)}"
+  run make -s llm LLM_MODEL="$LLM_MODEL" && ok "model ready on http://$HOST:$OLLAMA_PORT/v1; this run reviews with it (LLM_BASE_URL=$LLM_BASE_URL)" \
     || warn "could not start or pull the model — the review agent will report BLIND (advisory, not blocking)"
+  grep -qE '^LLM_BASE_URL=[^ #]' .env 2>/dev/null || warn "to keep the review agent on in later runs: echo 'LLM_BASE_URL=$LLM_BASE_URL' >> .env"
 fi
 
 if [ $CHECK = 1 ]; then harness_checks || status=1; fi

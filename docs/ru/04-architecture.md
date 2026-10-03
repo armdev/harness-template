@@ -115,11 +115,11 @@ flowchart LR
 
 | Аспект | Решение | Чем обеспечено |
 |---|---|---|
-| Идентичность сервиса | один ключ Ed25519 на сервис, генерирует one-shot `service-keys`; каждый сервис монтирует только свой закрытый ключ | topology T2 |
+| Идентичность сервиса | один ключ Ed25519 на сервис, генерирует one-shot `service-keys`; каждый сервис монтирует только свой закрытый ключ, а каждый вызываемый — публичные ключи | topology T2, T10 |
 | Авторизация | вызываемый принимает только вызывающих из своего `TRUSTED_CALLERS`; без подписи → 401, недоверенный → 403 | topology T1, semgrep `unsigned-service-call`, contract `test_service_auth`, рубрика R1 |
 | Владение данными | у каждого сервиса своя роль и схема; никаких чтений чужих схем | migrations M4, рубрика R4 |
 | Изменения схемы | только Flyway, история только дописывается; у сервисов нет DDL | migrations M1–M5, semgrep `ddl-outside-migrations` |
-| События | топики создаёт `kafka-init`, автосоздание выключено; идемпотентный консьюмер, коммит после записи | topology T5, рубрика R8 |
+| События | топики создаёт `kafka-init`, автосоздание выключено; идемпотентный консьюмер, коммит после записи | topology T5, semgrep `kafka-consumer-auto-commit`, рубрика R8 |
 | Конфигурация | `${NAME:-default}` в compose + `.env.example` | topology T3, T8, рубрика R5 |
 | Хранение данных | в `DATA_DIR`, никогда в репозитории | topology T9 |
 | Наблюдаемость | JSON-логи с request id; `http_requests_total`, `http_request_duration_seconds`; алерты на сервис | topology T7, prom-rules |

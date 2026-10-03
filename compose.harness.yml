@@ -6,7 +6,7 @@
 
 x-harness-svc: &harness
   build: { context: ., dockerfile: harness/Dockerfile }
-  image: ${HARNESS_IMAGE:-air-harness-runner:0.2.0}
+  image: ${HARNESS_IMAGE:-air-harness-runner:0.3.0}
   profiles: [harness]
   user: "${HARNESS_UID:-1000}:${HARNESS_GID:-1000}"    # report files owned by the developer, not root
   read_only: true
@@ -38,7 +38,7 @@ services:
       HARNESS_ROOT: /work
       HARNESS_OUT: /out
       HARNESS_TIMEOUT: ${HARNESS_TIMEOUT:-300}
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}                    # empty = review agent skipped; local: http://host.docker.internal:11434/v1
       LLM_API_KEY: ${LLM_API_KEY:-not-needed}
       LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
       REVIEW_MODEL: ${REVIEW_MODEL:-}                    # a stronger model for review than for generation, if you have one

@@ -8,6 +8,8 @@
   list                                   every sensor with its stage, plane and command (what the agent can run)
 
 Only dependency: PyYAML. Same script runs in the harness container (static/live planes) and on the host.
+Sensor exit codes: 0 pass · 125 skipped (not configured; advisory sensors only — a blocking sensor that exits 125
+is blind) · 126/127 blind (cannot run) · anything else fail.
 Exit codes: run 1 = a blocking sensor failed or is blind; selftest 1 = a sensor is blind; coverage 1 = manifest
 is inconsistent; 2 = usage error; 3 = run --only names a sensor of another plane.
 """
@@ -32,7 +34,8 @@ TIMEOUT = int(os.environ.get("HARNESS_TIMEOUT", "900"))
 STAGES = ["pre-commit", "integration", "pipeline", "continuous"]
 PLANES = ["static", "live", "host"]
 KINDS = ["computational", "inferential"]
-MARK = {"pass": "ok", "fail": "FAIL", "unavailable": "BLIND", "timeout": "TIMEOUT"}
+MARK = {"pass": "ok", "fail": "FAIL", "unavailable": "BLIND", "timeout": "TIMEOUT", "skipped": "SKIP"}
+SKIPPED_RC = 125   # "deliberately not configured" (e.g. no LLM) — distinct from 126/127 "cannot run"
 
 
 def manifest() -> dict:
@@ -49,13 +52,15 @@ def git_rev() -> str:
 
 
 def execute(cmd: str) -> tuple[str, int, str, float]:
-    """Run a manifest command. 126/127 (cannot execute / not found) mean the sensor is blind, not the code bad."""
+    """Run a manifest command. 126/127 (cannot execute / not found) mean the sensor is blind, not the code bad;
+    125 means the sensor is not configured here (callers decide whether that is allowed)."""
     t0 = time.monotonic()
     try:
         p = subprocess.run(cmd, shell=True, cwd=ROOT, capture_output=True, text=True,  # noqa: S602 — manifest is trusted
                            timeout=TIMEOUT)
         out, rc = (p.stdout + p.stderr).strip(), p.returncode
-        status = "pass" if rc == 0 else "unavailable" if rc in (126, 127) else "fail"
+        status = ("pass" if rc == 0 else "unavailable" if rc in (126, 127) else
+                  "skipped" if rc == SKIPPED_RC else "fail")
     except subprocess.TimeoutExpired:
         out, rc, status = f"timed out after {TIMEOUT}s", -1, "timeout"
     return status, rc, out, time.monotonic() - t0
@@ -90,6 +95,9 @@ def cmd_run(a: argparse.Namespace) -> int:
         print(f"no sensors for stage {a.stage} on plane {a.plane}")
     for s in sensors:
         status, rc, out, dur = execute(s["run"])
+        if status == "skipped" and s.get("blocking", True):
+            status, out = "unavailable", f"blocking sensor exited {SKIPPED_RC} (skipped), which only advisory " \
+                                         f"sensors may do\n{out}"
         res = {"id": s["id"], "status": status, "rc": rc, "seconds": round(dur, 2), "rev": rev,
                "stage": a.stage, "plane": s["plane"], "kind": s["kind"], "category": s["category"],
                "blocking": s.get("blocking", True), "ts": int(time.time()),
@@ -98,7 +106,7 @@ def cmd_run(a: argparse.Namespace) -> int:
         with (OUT / "ledger.jsonl").open("a") as f:
             f.write(json.dumps({k: v for k, v in res.items() if k not in ("output", "warnings")}) + "\n")
         print(f"[{MARK[status]:7}] {s['id']:22} {s['kind']:13} {dur:6.1f}s")
-        if status != "pass" and res["blocking"]:
+        if status not in ("pass", "skipped") and res["blocking"]:
             blocking_failed = True
 
     write_report(m, a.stage, rev)
@@ -118,6 +126,7 @@ def write_report(m: dict, stage: str, rev: str) -> None:
                 results.append(r)
     failed = [r for r in results if r["status"] == "fail"]
     blind = [r for r in results if r["status"] in ("unavailable", "timeout")]
+    skipped = [r for r in results if r["status"] == "skipped"]
     passed = [r for r in results if r["status"] == "pass"]
     warned = [r for r in passed if r.get("warnings")]
     missing = [sid for sid in by_id if sid not in {r["id"] for r in results}]
@@ -151,6 +160,9 @@ def write_report(m: dict, stage: str, rev: str) -> None:
     if blind:
         lines += ["## Blind sensors (not your code — the harness is broken; report it, do not work around it)", ""]
         lines += [f"- `{r['id']}`: {r['status']}{stale(r)} — {r['output'][:300]}" for r in blind] + [""]
+    if skipped:
+        lines += ["## Skipped (not configured)", ""]
+        lines += [f"- `{r['id']}`{stale(r)} — {(r['output'].splitlines() or [''])[-1][:300]}" for r in skipped] + [""]
     if warned:
         lines += ["## Warnings (sensor passed; fix if your change caused them)", ""]
         for r in warned:
@@ -273,20 +285,28 @@ def cmd_stats(a: argparse.Namespace) -> int:
     if not p.exists():
         print("no ledger yet — run some stages first")
         return 0
-    runs, fails, blind, secs = Counter(), Counter(), Counter(), defaultdict(float)
+    runs, fails, blind, skips, secs = Counter(), Counter(), Counter(), Counter(), defaultdict(float)
     for line in p.read_text().splitlines():
         r = json.loads(line)
+        if r["status"] == "skipped":                     # says nothing about the code or the sensor
+            skips[r["id"]] += 1
+            continue
         runs[r["id"]] += 1
         secs[r["id"]] += r["seconds"]
         fails[r["id"]] += r["status"] == "fail"
         blind[r["id"]] += r["status"] in ("unavailable", "timeout")
-    print(f"{'sensor':22}{'runs':>6}{'fired':>7}{'rate':>7}{'blind':>7}{'avg s':>8}  steer")
-    for sid in sorted(runs, key=lambda x: -fails[x] / runs[x]):
+    print(f"{'sensor':22}{'runs':>6}{'fired':>7}{'rate':>7}{'blind':>7}{'avg s':>8}{'skipped':>8}  steer")
+    for sid in sorted(set(runs) | set(skips), key=lambda x: -fails[x] / runs[x] if runs[x] else 1):
+        if not runs[sid]:
+            print(f"{sid:22}{0:>6}{0:>7}{'-':>7}{0:>7}{'-':>8}{skips[sid]:>8}  "
+                  f"never ran: configure it (see its skip message) or drop it from this stage")
+            continue
         rate = fails[sid] / runs[sid]
         hint = ("blind too often: fix the sensor's environment" if blind[sid] / runs[sid] > 0.2 else
                 "fires often: strengthen the paired guide" if rate > 0.3 else
                 "never fired: run selftest, or demote/remove" if runs[sid] >= a.min_runs and fails[sid] == 0 else "")
-        print(f"{sid:22}{runs[sid]:>6}{fails[sid]:>7}{rate:>7.0%}{blind[sid]:>7}{secs[sid] / runs[sid]:>8.1f}  {hint}")
+        print(f"{sid:22}{runs[sid]:>6}{fails[sid]:>7}{rate:>7.0%}{blind[sid]:>7}{secs[sid] / runs[sid]:>8.1f}"
+              f"{skips[sid]:>8}  {hint}")
     return 0
 
 

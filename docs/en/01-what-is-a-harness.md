@@ -61,6 +61,7 @@ Templates drift the moment they are copied. air-harness is built like a product:
 | **Stage** | When a sensor runs: `pre-commit` < `integration` < `pipeline` < `continuous`. Keep quality left. |
 | **Blocking** | A failing blocking sensor turns the report RED. Advisory sensors only inform. |
 | **Blind** | A sensor that could not run (tool missing, LLM unreachable, timeout). A harness problem, never a code failure — and never counted as passed. |
+| **Skipped** | An advisory sensor that is deliberately not configured here (e.g. no LLM endpoint). Expected, never blocks, left out of the statistics; the report says how to enable it. |
 | **Seeded defect** | A fixture with a known mistake (`# expect: <rule>`) that proves the sensor can still fire. |
 | **Report** | `.harness/report.md` — the single document the agent reads after every change. |
 | **Ledger** | `.harness/ledger.jsonl` — one line per sensor run; the data behind the steering loop. |

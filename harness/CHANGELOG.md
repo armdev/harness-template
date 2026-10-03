@@ -1,5 +1,34 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.3.0
+
+Three changes from the steering loop (`harness/prompts/next-steps/08-improve-harness.md`), each found while an agent
+implemented prompts 02–04 against the reference system.
+
+- **Topology T10 callee-verifies** (ERROR). A service with `TRUSTED_CALLERS` must mount the `service-keys`
+  subpath `public`; without it it cannot verify any signature and rejects every call with 401 at runtime. Found while
+  adding `notify`: nothing caught a forgotten mount. Seeded defect `t10_callee_without_public_keys.yml`; the clean
+  fixture (which had the bug) and the other topology fixtures now mount the public keys, so each seeded defect fires
+  only its own rule. Taught in `harness/skills/new-service/SKILL.md` step 3.
+- **Semgrep `kafka-consumer-auto-commit`** (ERROR). Rubric R8 ("commit the offset after the side effect") was
+  prose only; a `confluent_kafka.Consumer({...})` literal config without `"enable.auto.commit": False` is now caught
+  mechanically. Seeded defect `kafka_auto_commit.py`; the clean fixture contains a correct consumer. Paired with the
+  new-topic skill.
+- **SKIPPED status for unconfigured advisory sensors.** Sensor exit code 125 means "deliberately not configured
+  here"; the runner reports SKIP, lists it under *Skipped (not configured)* with the sensor's own hint, keeps it out
+  of every stats rate (new `skipped` column) and never fails a stage. A blocking sensor that exits 125 is BLIND.
+  The review agent is now opt-in: `LLM_BASE_URL` defaults to empty → SKIPPED; set but unreachable → BLIND (before,
+  "no LLM" and "LLM down" were both BLIND, which made `harness-stats` recommend fixing an environment nobody set up).
+  `./run.sh --llm` sets `LLM_BASE_URL` for its run and prints the `.env` line that keeps it on.
+- Runner image tag `air-harness-runner:0.3.0`.
+
+Expected first-run impact on existing projects:
+- T10 fires once per callee that does not mount `public` — each one is a real 401-on-every-call bug.
+- `kafka-consumer-auto-commit` fires on consumers left on librdkafka's default; fix by disabling auto-commit and
+  committing after the write.
+- Projects that relied on the old `LLM_BASE_URL` default (`http://host.docker.internal:11434/v1`) must now set it in
+  `.env`; until then the review agent reports SKIPPED instead of reviewing.
+
 ## 0.2.0
 
 Product name: **air-harness** (was haytarar). Images `air-harness/*`, runner image `air-harness-runner`,
