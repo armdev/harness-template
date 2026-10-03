@@ -66,7 +66,8 @@ flowchart LR
 1. **Blocking failures** — each with *How to fix*, the *Guides* that teach the rule, the sensor output, and the
    exact command to *re-run only this* sensor.
 2. **Advisory findings** — judgement calls (review agent, eval).
-3. **Blind sensors** — harness problems (e.g. no LLM). Report them, do not work around them.
+3. **Blind sensors** — harness problems (e.g. a configured LLM that is unreachable). Report them, do not work
+   around them. **Skipped** sensors are not configured here (e.g. no LLM at all) — expected, and they say how to enable them.
 4. **Warnings** — from sensors that passed.
 5. **Not run in this stage yet** and **Passed**. Results from an older commit are marked *stale*.
 
@@ -143,7 +144,9 @@ LLM_API_KEY=...
 REVIEW_MODEL=a-stronger-model           # optional: review with a stronger model than you generate with
 ```
 
-Without an LLM it reports **BLIND**, which never blocks.
+The review is **opt-in**: with `LLM_BASE_URL` empty (the default) it reports **SKIPPED**; with an endpoint that is
+set but unreachable it reports **BLIND**. Neither ever blocks. `./run.sh --llm` turns it on for that run and tells you
+the line to put in `.env` to keep it on.
 
 ## 2.7 Troubleshooting
 

@@ -120,9 +120,9 @@ infra/prometheus/             scrape config and alert rules
 
 | Sensor | Stage | Blocking | Proves |
 |---|---|---|---|
-| `topology` | pre-commit | yes | compose is consistent: trusted callers, keys, defaults, startup order, pinned images, alerts, documented env, no data in the repo |
+| `topology` | pre-commit | yes | compose is consistent: trusted callers, keys, defaults, startup order, pinned images, alerts, documented env, no data in the repo, callees can verify |
 | `migrations` | pre-commit | yes | Flyway history is append-only, well named, every table granted |
-| `ruff`, `semgrep-local` | pre-commit | yes | lint; organisation rules (parameterised SQL, TLS on, no DDL in code, signed calls only) |
+| `ruff`, `semgrep-local` | pre-commit | yes | lint; organisation rules (parameterised SQL, TLS on, no DDL in code, signed calls only, Kafka consumers commit after the write) |
 | `review-agent` | pre-commit | no | the rubric applied to the diff by an LLM |
 | `unit`, `contract` | integration | yes | library tests; the public API behaves as specified |
 | `eval`, `prom-rules` | pipeline | no / yes | search quality vs. baseline; alert rules parse |

@@ -34,13 +34,15 @@ flowchart TD
     C -->|0| P[pass]
     C -->|126 / 127| U[unavailable → BLIND]
     C -->|timeout| T[timeout → BLIND]
+    C -->|125| K[skipped → SKIP<br/>advisory only; blocking → BLIND]
     C -->|other| F[fail]
-    P & U & T & F --> W["write results/ID.json<br/>append ledger.jsonl"]
+    P & U & T & F & K --> W["write results/ID.json<br/>append ledger.jsonl"]
     W --> R[write report.md<br/>union of latest results of the stage]
 ```
 
-A sensor is **any command**. Contract: exit 0 = pass; 126/127 = cannot run (the runner reports BLIND, never a
-code failure); anything else = fail. Findings are printed one per line starting with `ERROR` or `WARN`, followed
+A sensor is **any command**. Contract: exit 0 = pass; 125 = deliberately not configured here (e.g. no LLM) — the
+runner reports SKIP, which never fails a stage, but only for advisory sensors (a blocking sensor that exits 125 is
+BLIND); 126/127 = cannot run (BLIND, never a code failure); anything else = fail. Findings are printed one per line starting with `ERROR` or `WARN`, followed
 by indented `what:` / `fix:` lines. `WARN` lines (and their next two indented lines) of a *passing* sensor are
 still surfaced in the report.
 
@@ -53,7 +55,7 @@ still surfaced in the report.
  "output": "<last HARNESS_TAIL_LINES lines>", "warnings": ["WARN T6 ...\n      what: ...\n      fix: ..."]}
 ```
 
-`status` ∈ `pass | fail | unavailable | timeout`. The **ledger** (`.harness/ledger.jsonl`) appends the same
+`status` ∈ `pass | fail | unavailable | timeout | skipped`. The **ledger** (`.harness/ledger.jsonl`) appends the same
 record without `output` and `warnings`, one line per run.
 
 ### Report — `.harness/report.md`
@@ -67,9 +69,10 @@ separately, produce one report):
    command for the host plane), the output tail.
 3. *Advisory findings* — same layout for non-blocking failures.
 4. *Blind sensors* — status and the first 300 characters of output.
-5. *Warnings* — WARN blocks of passing sensors.
-6. *Not run in this stage yet* — declared sensors without a result (e.g. another plane).
-7. *Passed*.
+5. *Skipped (not configured)* — the sensor's own last output line, which says how to enable it.
+6. *Warnings* — WARN blocks of passing sensors.
+7. *Not run in this stage yet* — declared sensors without a result (e.g. another plane).
+8. *Passed*.
 
 A result whose `rev` differs from the current revision is marked **stale**.
 
@@ -96,7 +99,8 @@ blocking · `UNPROVEN` static computational sensor without seeded defects.
 
 ### Stats — steering hints
 
-Per sensor: runs, fired (= failed), rate, blind, average seconds. Hint order: *blind > 20 %* → fix the
+Per sensor: runs, fired (= failed), rate, blind, average seconds, skipped. Skipped runs are counted apart and left
+out of every rate (a sensor that only ever skipped is listed as *never ran*). Hint order: *blind > 20 %* → fix the
 environment; *rate > 30 %* → strengthen the paired guide; *never fired in ≥ `--min-runs` runs* → run selftest,
 demote or remove.
 
@@ -104,7 +108,7 @@ demote or remove.
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.2.0 }
+template: { name: py-services-pg-kafka, version: 0.3.0 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <unique>                 # referenced by sensors.pairs_with
@@ -128,7 +132,7 @@ sensors:
 
 ## 6.3 Sensor containers (`compose.harness.yml`, `harness.mk`)
 
-Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.2.0}`, profile `harness`,
+Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.0}`, profile `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (set by make to the invoking user), `read_only: true`, `tmpfs: /tmp`,
 `cap_drop: [ALL]`, `no-new-privileges`, the repository at `/work:ro` and `./.harness` at `/out`.
 
@@ -147,7 +151,7 @@ Input: a compose file (`--strict` makes warnings fail, used by selftest). Parses
 (so `<<` merges are resolved and `depends_on` is the effective one) and scans the raw text for variables
 (comments stripped). Paths for T7/T8 come from the compose file itself: `x-harness: {alerts, env_example}`.
 Services in a dev profile (`TOPOLOGY_DEV_PROFILES`, default `admin,local-llm,e2e,tools`) are tooling and are
-skipped by T1, T4–T7, T9.
+skipped by T1, T4–T7, T9, T10.
 
 | Rule | Severity | Check |
 |---|---|---|
@@ -160,6 +164,7 @@ skipped by T1, T4–T7, T9.
 | T7 alerts-present | ERROR | every long-running (`restart` set), built, profile-less service has `job="<name>"` in the alerts file |
 | T8 env-documented | ERROR | every `${VAR}` read by compose is a `VAR=` line in the env example |
 | T9 data-outside-repo | ERROR | no writable bind mount from the repository (`./…`) |
+| T10 callee-verifies | ERROR | a service with `TRUSTED_CALLERS` mounts the `service-keys` subpath `public`; without it it can verify no signature and rejects every call with 401 (checked when `service-keys` exists) |
 
 Output format: `SEV  RULE  location` / `what:` / `fix:`; last line `topology: N services, E errors, W warnings`.
 
@@ -191,7 +196,8 @@ sequenceDiagram
 ```
 
 Scope: `services libs db contract docker-compose.yml infra`. `REVIEW_DIFF_BASE` set → `git diff <base>`.
-Unreachable endpoint or a reply without a JSON object → exit 127 (BLIND). `LLM_NO_THINK=true` sends
+`LLM_BASE_URL` empty (the default: the review is opt-in) → exit 125 (SKIP, with how to enable it). Configured but
+unreachable endpoint, or a reply without a JSON object → exit 127 (BLIND). `LLM_NO_THINK=true` sends
 `chat_template_kwargs.enable_thinking=false` (ignored by servers that do not support it). Finding schema:
 `{severity: ERROR|WARN, rule, file, line, what, fix}`.
 
@@ -417,10 +423,10 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `LOG_LEVEL` | `INFO` | services |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | broker heap |
 | `*_TAG` | pinned | image versions |
-| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | host Ollama, `qwen3:8b` | review agent |
+| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | empty (review skipped), `qwen3:8b` | review agent (opt-in) |
 | `REVIEW_DIFF_BASE` | empty | what the reviewer reviews |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, empty | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.2.0, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.3.0, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | host name printed by `run.sh` |
 
 Next: [Demo](07-demo.md) · back to the [documentation index](../README.md).
