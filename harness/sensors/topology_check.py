@@ -15,11 +15,13 @@ Rules
   T7 alerts-present   Every long-running application service (has `build:`) has rules in the alerts file
   T8 env-documented   Every ${VAR} the compose file reads is listed in the env example file
   T9 data-outside-repo  No writable bind mount into the repository (persistent data lives under DATA_DIR)
+  T10 callee-verifies  A service with TRUSTED_CALLERS mounts the public keys (service-keys subpath 'public'),
+                      otherwise it cannot verify any signature and rejects every call with 401
 
 T7/T8 read their file paths from the compose file itself (ignored by compose):
   x-harness: { alerts: infra/prometheus/alerts.yml, env_example: .env.example }
 Paths are relative to the working directory (the repository root). Services in a dev profile
-(TOPOLOGY_DEV_PROFILES) are test/ops tooling, not the deployed architecture: T1, T4-T7 and T9 skip them.
+(TOPOLOGY_DEV_PROFILES) are test/ops tooling, not the deployed architecture: T1, T4-T7, T9 and T10 skip them.
 
 Exit code: 1 if any error, else 0. Warnings never fail the build, except with --strict (used by selftest
 so that seeded defects for warning rules prove the rule can fire).
@@ -71,6 +73,11 @@ def key_subpaths(svc: dict) -> list[str]:
             if sub and sub != "public":
                 out.append(sub)
     return out
+
+
+def mounts_public_keys(svc: dict) -> bool:
+    return any(isinstance(v, dict) and v.get("source") == "service-keys"
+               and (v.get("volume") or {}).get("subpath") == "public" for v in svc.get("volumes") or [])
 
 
 def code_lines(raw: str):
@@ -222,6 +229,17 @@ def main(compose_path: str, strict: bool = False) -> int:
                 report("ERROR", "T8 env-documented", f"${{{var}}} (line {lineno})",
                        f"{var} is read by compose but not listed in {ex_path}",
                        f"add '{var}=<default>  # what it controls' to {ex_path}")
+
+    # T10 callee-verifies (only meaningful where service identities exist)
+    if key_list:
+        for callee in sorted(trusted):
+            s = services[callee]
+            if not is_dev(s) and not mounts_public_keys(s):
+                report("ERROR", "T10 callee-verifies", f"services.{callee}.volumes",
+                       f"{callee} accepts signed calls (TRUSTED_CALLERS={sorted(trusted[callee])}) but does not mount "
+                       f"the public keys, so it cannot verify any caller and every call fails with 401",
+                       f"mount service-keys with volume.subpath: public at /run/keys/public (read_only) on {callee} "
+                       f"(see harness/skills/new-service/SKILL.md step 3)")
 
     # T9 data-outside-repo
     for name, s in services.items():
