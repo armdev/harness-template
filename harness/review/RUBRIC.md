@@ -14,7 +14,7 @@ be reported as ERROR.
 | R5  | no  | A new configuration value is added to `docker-compose.yml` with a `${NAME:-default}` and a one-line comment, and to `.env.example`. |
 | R6  | no  | No brute-force fixes: no broad `except Exception: pass`, no sleeps or retries added to make a test pass, no assertions loosened to go green. Waiting for an asynchronous effect uses a bounded poll (`eventually()`). |
 | R7  | no  | No speculative structure: no new abstraction, flag or layer with a single caller unless the task asked for it. |
-| R8  | no  | An event consumer is idempotent (upsert / dedupe on a key) and commits its offset only after its side effect succeeded. An event payload change is backward compatible or uses a new topic. |
+| R8  | no  | An event consumer is idempotent (upsert / dedupe on a key) and commits its offset only after its side effect succeeded (auto-commit is caught mechanically by semgrep `kafka-consumer-auto-commit`; review the rest). An event payload change is backward compatible or uses a new topic. |
 | R9  | no  | A change to ranking or search behaviour states its expected effect on `make eval` in the commit message or PR. |
 
 ## How to dispute a finding
