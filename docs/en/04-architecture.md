@@ -62,7 +62,7 @@ stage into one report.
 |---|---|---|
 | pre-commit | every change (agent loop, git hook, Stop hook) | topology, migrations, ruff, semgrep-local · review-agent (advisory) |
 | integration | before "done", stack up | unit, contract |
-| pipeline | CI on every PR / push | static sensors + unit, contract, eval (advisory), prom-rules |
+| pipeline | CI on every PR / push | static sensors + unit, contract, eval, prom-rules |
 | continuous | nightly | dead-code, deps-audit (advisory) |
 
 ### The manifest is the architecture of the harness

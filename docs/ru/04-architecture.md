@@ -62,7 +62,7 @@ flowchart LR
 |---|---|---|
 | pre-commit | каждое изменение (цикл агента, git-хук, Stop-хук) | topology, migrations, ruff, semgrep-local · review-agent (рекомендательный) |
 | integration | перед «готово», стенд поднят | unit, contract |
-| pipeline | CI на каждый PR / push | статические сенсоры + unit, contract, eval (рекомендательный), prom-rules |
+| pipeline | CI на каждый PR / push | статические сенсоры + unit, contract, eval, prom-rules |
 | continuous | ночью | dead-code, deps-audit (рекомендательные) |
 
 ### Манифест — это архитектура harness

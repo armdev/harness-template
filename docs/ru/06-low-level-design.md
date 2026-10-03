@@ -111,7 +111,7 @@ flowchart TD
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.3.0 }
+template: { name: py-services-pg-kafka, version: 0.3.1 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <уникальный>             # на него ссылается sensors.pairs_with
@@ -135,7 +135,7 @@ sensors:
 
 ## 6.3 Контейнеры сенсоров (`compose.harness.yml`, `harness.mk`)
 
-Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.0}`, профиль `harness`,
+Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.1}`, профиль `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (make подставляет вызвавшего пользователя), `read_only: true`,
 `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, репозиторий в `/work:ro` и `./.harness` в `/out`.
 
@@ -390,7 +390,8 @@ One-shot `migrate` запускает Flyway с `FLYWAY_CONNECT_RETRIES=30`; п�
    - RR = 1 / позиция первого релевантного (0, если нет); MRR@10 = среднее RR
    - судья (опционально, `JUDGE_BASE_URL`): первый результат оценивается 0–3 по `harness/prompts/judge.md`;
      judge@1 = Σ оценок / (3 · число оценённых)
-4. Регрессия = метрика < baseline − `EVAL_TOLERANCE` (0.05) → код 1.
+4. Регрессия = recall@5 или MRR@10 < baseline − `EVAL_TOLERANCE` (0.05) → код 1 (сенсор блокирующий).
+   Падение judge@1 печатается и помечается `drop (advisory)`; запуск оно не роняет.
 5. Пишет `$EVAL_OUT/eval-results.json` (осознанно переносится в `eval/baseline.json`) и `eval-report.md`.
 
 ## 6.13 `run.sh`
@@ -440,7 +441,7 @@ pull request и `HEAD~1` для push.
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | пусто (ревью пропускается), `qwen3:8b` | агент-ревьюер (включается явно) |
 | `REVIEW_DIFF_BASE` | пусто | что именно ревьюит ревьюер |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, пусто | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.0, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.1, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
 Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).
