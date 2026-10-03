@@ -75,13 +75,14 @@ skills (`harness-report`, `harness-steer`), which `harness-coverage` reports hon
 | Component | Path | Responsibility |
 |---|---|---|
 | Shared library | `libs/common/common/` | `service_auth` (Ed25519 signing client, verifier, FastAPI dependency), `telemetry` (`create_app`: JSON logs, request id, `/healthz`, `/metrics`, HTTP metrics), `keygen` (identity generation) |
-| gateway | `services/gateway/app.py` | public routes `/api/posts`, `/api/posts/{id}`, `/api/search`; signed forwarding; `/` → `/docs` |
-| content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`; writes `content.posts`; produces `content.post.created` |
-| search | `services/search/app.py`, `indexer.py` | `GET /search`; Kafka consumer upserting `search.documents`; Postgres full-text ranking |
-| Migrations | `db/migrations/V1..V3` | roles `content_svc`, `search_svc`; schemas `content`, `search`; tables, indexes, grants |
+| gateway | `services/gateway/app.py` | public routes `/api/posts` (create, list by author), `/api/posts/{id}`, `/api/search`, `/api/notifications`; signed forwarding; `/` → `/docs` |
+| content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`, `GET /posts?author=`; writes `content.posts`; produces `content.post.created` |
+| search | `services/search/app.py`, `indexer.py` | `GET /search` (author and tag filters); Kafka consumer upserting `search.documents`; Postgres full-text ranking |
+| notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; Kafka consumer recording one `notify.outbox` row per post (idempotent) |
+| Migrations | `db/migrations/V1..V7` | roles `content_svc`, `search_svc`, `notify_svc`; schemas `content`, `search`, `notify`; tables, indexes, tags, grants |
 | One-shots | `docker-compose.yml` | `storage-init` (DATA_DIR layout), `service-keys` (identities), `migrate` (Flyway), `kafka-init` (topics) |
 | Infrastructure | `docker-compose.yml` | `postgres`, `kafka` (KRaft), `prometheus` (profile), `ollama` (profile) |
-| Contract suite | `contract/` | specification of the public API and of the auth boundary (12 tests) |
+| Contract suite | `contract/` | specification of the public API and of the auth boundary (32 tests) |
 | Unit tests | `libs/common/tests/` | signing, verification, spoofing, tampering, skew, keygen idempotence |
 | Eval | `eval/` | corpus + queries, `run_eval.py`, `baseline.json` |
 | Tools image | `tools/Dockerfile` | pytest, httpx, PyYAML, `libs/common` for contract, unit and eval containers |

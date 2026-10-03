@@ -46,7 +46,7 @@ Templates drift the moment they are copied. air-harness is built like a product:
 
 1. **The harness** — manifest, runner, sensors, rules, rubric, skills, prompts, hooks and CI wiring.
 2. **A reference system** that the harness regulates, so everything runs on real code from the first command:
-   three Python services (gateway, content, search) with Ed25519-signed service-to-service calls, PostgreSQL
+   four Python services (gateway, content, search, notify) with Ed25519-signed service-to-service calls, PostgreSQL
    with a role and schema per service, Flyway migrations, Kafka, Prometheus — all in one `docker-compose.yml`.
 3. **The product surface** — `run.sh` (run everything, print every URL), `help.sh` (the guide in your
    terminal) and ready-to-paste next-step prompts for coding agents.

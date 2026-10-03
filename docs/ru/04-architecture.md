@@ -3,7 +3,7 @@
 air-harness состоит из двух половин в одном репозитории:
 
 1. **Harness** — гайды и сенсоры, которые регулируют агента.
-2. **Эталонная система** — приложение, которое регулирует harness (gateway, content, search поверх PostgreSQL
+2. **Эталонная система** — приложение, которое регулирует harness (gateway, content, search, notify поверх PostgreSQL
    и Kafka). Она нужна, чтобы у каждого сенсора был реальный код для наблюдения; в вашем проекте её заменяют
    ваши сервисы.
 
@@ -94,18 +94,22 @@ flowchart LR
     client(["Клиент / контрактные тесты / eval"]) -->|"HTTP :8080"| gw["gateway<br/>публичный API"]
     gw -->|"подпись Ed25519"| content["content<br/>владеет постами"]
     gw -->|"подпись Ed25519"| search["search<br/>полнотекстовый индекс"]
+    gw -->|"подпись Ed25519"| notify["notify<br/>журнал уведомлений"]
     content -->|content.post.created| kafka[("Kafka<br/>KRaft")]
     kafka -->|"consumer group search"| search
+    kafka -->|"consumer group notify"| notify
     content -->|"content_svc · схема content"| pg[(PostgreSQL)]
     search -->|"search_svc · схема search"| pg
-    prom[Prometheus] -.->|"scrape /metrics"| gw & content & search
+    notify -->|"notify_svc · схема notify"| pg
+    prom[Prometheus] -.->|"scrape /metrics"| gw & content & search & notify
 ```
 
 | Сервис | Ответственность | Доступ | Данные | Доверяет |
 |---|---|---|---|---|
 | gateway | публичный HTTP API; валидирует и проксирует; данных не хранит | хост `:8080` | — | (публичный) |
-| content | создаёт и читает посты; публикует `content.post.created` | внутренний `:8000` | `content.posts` (роль `content_svc`) | gateway |
-| search | индексирует события; полнотекстовый поиск с фильтром по автору | внутренний `:8000` | `search.documents` (роль `search_svc`) | gateway |
+| content | создаёт, читает и перечисляет посты (с тегами); публикует `content.post.created` | внутренний `:8000` | `content.posts` (роль `content_svc`) | gateway |
+| search | индексирует события; полнотекстовый поиск с фильтрами по автору и тегу | внутренний `:8000` | `search.documents` (роль `search_svc`) | gateway |
+| notify | записывает одно уведомление на каждый новый пост (замена e-mail); выдаёт их список | внутренний `:8000` | `notify.outbox` (роль `notify_svc`) | gateway |
 
 ### Сквозные решения
 
@@ -130,9 +134,9 @@ flowchart TB
     pg -->|healthy| mig["migrate · Flyway<br/>one-shot"]
     kf -->|healthy| ki["kafka-init<br/>one-shot"]
     sk["service-keys<br/>one-shot"]
-    sk & mig & ki -->|completed| content & search
+    sk & mig & ki -->|completed| content & search & notify
     sk --> gw[gateway]
-    content & search -->|healthy| gw
+    content & search & notify -->|healthy| gw
 ```
 
 Опциональные профили: `observability` (Prometheus), `local-llm` (Ollama), `tools` (контейнеры contract, unit,

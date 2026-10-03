@@ -112,7 +112,7 @@ harness/
   hooks/agent-stop.sh         agent Stop hook
   tests/                      tests of the harness itself (make harness-test)
 docker-compose.yml            the reference system's architecture (checked by the topology sensor)
-services/  libs/common/       gateway · content · search; signed calls, logging, metrics
+services/  libs/common/       gateway · content · search · notify; signed calls, logging, metrics
 db/migrations/                Flyway
 contract/  eval/  tools/      API specification · search-quality eval · test tooling image
 infra/prometheus/             scrape config and alert rules

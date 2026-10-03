@@ -212,7 +212,7 @@ flowchart TD
 
 ## 6.8 Signed service-to-service calls (`libs/common/common/service_auth.py`)
 
-**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search` as root: per service
+**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search notify` as root: per service
 `/keys/<name>/private.pem` (PKCS#8 Ed25519, mode 0400, owner uid 10001, directory 0500) and
 `/keys/public/<name>.pem` (0444). Idempotent: existing keys are kept. Each service mounts
 `subpath: <name>` at `/run/keys/self` and `subpath: public` at `/run/keys/public`, read-only.
@@ -264,13 +264,17 @@ store, so a captured request can be replayed inside the skew window (internal ne
 |---|---|---|---|---|
 | GET | `/` | — | — | 307 → `/docs` |
 | POST | `/api/posts` | JSON body (object) | content `POST /posts` | 201 post · 422 validation · 502 upstream down |
+| GET | `/api/posts` | `author` (required, `^[A-Za-z0-9._-]+$`), `limit` 1–50 (20) | content `GET /posts` | 200 `{author, posts[]}` newest first · 422 · 502 |
 | GET | `/api/posts/{post_id}` | `post_id: int` | content `GET /posts/{id}` | 200 · 404 · 422 · 502 |
-| GET | `/api/search` | `q` 1–200 chars, `author?`, `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
+| GET | `/api/search` | `q` 1–200 chars, `author?`, `tag?` (`^[a-z0-9-]{1,32}$`), `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
+| GET | `/api/notifications` | `author` (required), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}` newest first · 422 · 502 |
 
 ### content
 
-`PostIn`: `title` 1–200, `body` 1–20000, `author` 1–64 matching `^[A-Za-z0-9._-]+$`.
-`Post` = `PostIn` + `id: int`, `created_at: datetime`.
+`PostIn`: `title` 1–200, `body` 1–20000, `author` 1–64 matching `^[A-Za-z0-9._-]+$`, `tags` 0–5 items each
+matching `^[a-z0-9-]{1,32}$` (default `[]`). `Post` = `PostIn` + `id: int`, `created_at: datetime`.
+`GET /posts?author=&limit=` returns `{author, posts[]}` ordered `created_at DESC, id DESC`, served by the
+index `posts_author_created_idx`.
 
 ```mermaid
 sequenceDiagram
@@ -290,14 +294,24 @@ sequenceDiagram
 ```
 
 Event `content.post.created` (3 partitions): key = post id, value =
-`{"id", "title", "body", "author", "created_at"}`. Only additive changes; a breaking change needs a new topic.
+`{"id", "title", "body", "author", "tags", "created_at"}` (`tags` was added later; consumers treat a missing
+field as `[]`). Only additive changes; a breaking change needs a new topic. Consumers: `search` and `notify`.
 
 ### search
 
 - **Indexer** (thread): malformed event → logged and skipped (offset committed); database error → seek back
   to the same offset, wait 2 s, retry. At-least-once + upsert = effectively once.
 - **Query:** `websearch_to_tsquery('english', q)` against `tsv`; rank `ts_rank_cd`; order `score DESC, post_id
-  DESC`; optional `author =` filter; `LIMIT` 1–50 (default 10).
+  DESC`; optional `author =` and `tag = ANY (tags)` filters; `LIMIT` 1–50 (default 10). Hits:
+  `{id, title, author, tags, score}`.
+
+### notify
+
+- **Consumer** (thread, group `notify`): one `notify.outbox` row per event, `INSERT … ON CONFLICT (post_id) DO
+  NOTHING`, offset committed after the write; malformed event → logged and skipped; database error → seek back,
+  wait 2 s, retry. A replayed event never notifies twice.
+- **`GET /outbox?author=&limit=`** (1–50, default 20) → `{author, notifications[{post_id, author, created_at}]}`,
+  ordered `created_at DESC, post_id DESC`.
 
 ## 6.11 Database (`db/migrations`)
 
@@ -306,6 +320,10 @@ Event `content.post.created` (3 partitions): key = post id, value =
 | `V1__service_roles.sql` | roles `content_svc`, `search_svc` (`LOGIN`, password from Flyway placeholders `${content_db_password}`, `${search_db_password}`); `REVOKE CREATE ON SCHEMA public FROM PUBLIC` |
 | `V2__content_posts.sql` | schema `content`; `content.posts` |
 | `V3__search_documents.sql` | schema `search`; `search.documents` + indexes |
+| `V4__content_posts_author_idx.sql` | index `(author, created_at DESC, id DESC)` for listing by author |
+| `V5__content_posts_tags.sql` | `content.posts.tags text[] NOT NULL DEFAULT '{}'`, at most 5 |
+| `V6__search_documents_tags.sql` | `search.documents.tags` + GIN index |
+| `V7__notify_outbox.sql` | role `notify_svc` (placeholder `${notify_db_password}`); schema `notify`; `notify.outbox` + index |
 
 ```mermaid
 erDiagram
@@ -313,7 +331,8 @@ erDiagram
         bigint id PK "GENERATED ALWAYS AS IDENTITY"
         text title "CHECK length 1..200"
         text body
-        text author
+        text author "btree (author, created_at DESC, id DESC)"
+        text[] tags "DEFAULT {}, at most 5"
         timestamptz created_at "DEFAULT now()"
     }
     SEARCH_DOCUMENTS {
@@ -322,14 +341,24 @@ erDiagram
         text body
         text author "btree index"
         tsvector tsv "GENERATED: title weight A, body weight B; GIN index"
+        text[] tags "GIN index"
+    }
+    NOTIFY_OUTBOX {
+        bigint post_id PK "= content.posts.id (via event, no FK)"
+        text author "btree (author, created_at DESC, post_id DESC)"
+        timestamptz created_at
+        timestamptz recorded_at "DEFAULT now()"
     }
     CONTENT_POSTS ||..o| SEARCH_DOCUMENTS : "content.post.created"
+    CONTENT_POSTS ||..o| NOTIFY_OUTBOX : "content.post.created"
 ```
 
 Grants: `content_svc` → `USAGE` on `content`, `SELECT, INSERT` on `content.posts`. `search_svc` → `USAGE` on
-`search`, `SELECT, INSERT, UPDATE` on `search.documents`. Objects are owned by the migration user (`postgres`).
+`search`, `SELECT, INSERT, UPDATE` on `search.documents`. `notify_svc` → `USAGE` on `notify`, `SELECT, INSERT` on
+`notify.outbox`. Objects are owned by the migration user (`postgres`).
 The `migrate` one-shot runs Flyway with `FLYWAY_CONNECT_RETRIES=30`; the placeholders come from
-`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD`, the same variables used in each service's `DB_DSN`.
+`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD` / `NOTIFY_DB_PASSWORD`, the same variables used in each service's
+`DB_DSN`.
 
 ## 6.12 Eval (`eval/run_eval.py`)
 
@@ -384,7 +413,7 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `DATA_DIR` | `/var/tmp/air-harness` | persistent data (postgres, kafka, ollama) |
 | `GATEWAY_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 9090 / 11434 | host ports |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | database |
-| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD` | `content-dev`, `search-dev` | service roles |
+| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | service roles |
 | `LOG_LEVEL` | `INFO` | services |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | broker heap |
 | `*_TAG` | pinned | image versions |

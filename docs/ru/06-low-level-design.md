@@ -214,7 +214,7 @@ flowchart TD
 
 ## 6.8 Подписанные межсервисные вызовы (`libs/common/common/service_auth.py`)
 
-**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search` от root: для каждого
+**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search notify` от root: для каждого
 сервиса `/keys/<name>/private.pem` (PKCS#8 Ed25519, права 0400, владелец uid 10001, каталог 0500) и
 `/keys/public/<name>.pem` (0444). Идемпотентно: существующие ключи сохраняются. Каждый сервис монтирует
 `subpath: <name>` в `/run/keys/self` и `subpath: public` в `/run/keys/public`, только на чтение.
@@ -267,13 +267,17 @@ sequenceDiagram
 |---|---|---|---|---|
 | GET | `/` | — | — | 307 → `/docs` |
 | POST | `/api/posts` | JSON-тело (объект) | content `POST /posts` | 201 пост · 422 валидация · 502 недоступен upstream |
+| GET | `/api/posts` | `author` (обязателен, `^[A-Za-z0-9._-]+$`), `limit` 1–50 (20) | content `GET /posts` | 200 `{author, posts[]}`, новые первыми · 422 · 502 |
 | GET | `/api/posts/{post_id}` | `post_id: int` | content `GET /posts/{id}` | 200 · 404 · 422 · 502 |
-| GET | `/api/search` | `q` 1–200 символов, `author?`, `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
+| GET | `/api/search` | `q` 1–200 символов, `author?`, `tag?` (`^[a-z0-9-]{1,32}$`), `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
+| GET | `/api/notifications` | `author` (обязателен), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}`, новые первыми · 422 · 502 |
 
 ### content
 
-`PostIn`: `title` 1–200, `body` 1–20000, `author` 1–64 по шаблону `^[A-Za-z0-9._-]+$`.
-`Post` = `PostIn` + `id: int`, `created_at: datetime`.
+`PostIn`: `title` 1–200, `body` 1–20000, `author` 1–64 по шаблону `^[A-Za-z0-9._-]+$`, `tags` — 0–5 элементов
+по шаблону `^[a-z0-9-]{1,32}$` (по умолчанию `[]`). `Post` = `PostIn` + `id: int`, `created_at: datetime`.
+`GET /posts?author=&limit=` возвращает `{author, posts[]}` в порядке `created_at DESC, id DESC` по индексу
+`posts_author_created_idx`.
 
 ```mermaid
 sequenceDiagram
@@ -293,15 +297,25 @@ sequenceDiagram
 ```
 
 Событие `content.post.created` (3 партиции): ключ = id поста, значение =
-`{"id", "title", "body", "author", "created_at"}`. Только добавляющие изменения; ломающее изменение требует
-нового топика.
+`{"id", "title", "body", "author", "tags", "created_at"}` (`tags` добавлено позже; консьюмеры считают
+отсутствующее поле равным `[]`). Только добавляющие изменения; ломающее изменение требует нового топика.
+Консьюмеры: `search` и `notify`.
 
 ### search
 
 - **Индексатор** (поток): некорректное событие → логируется и пропускается (смещение коммитится); ошибка БД →
   возврат к тому же смещению, пауза 2 с, повтор. At-least-once + upsert = фактически ровно один раз.
 - **Запрос:** `websearch_to_tsquery('english', q)` по `tsv`; ранг `ts_rank_cd`; сортировка `score DESC,
-  post_id DESC`; опциональный фильтр `author =`; `LIMIT` 1–50 (по умолчанию 10).
+  post_id DESC`; опциональные фильтры `author =` и `tag = ANY (tags)`; `LIMIT` 1–50 (по умолчанию 10).
+  Результаты: `{id, title, author, tags, score}`.
+
+### notify
+
+- **Консьюмер** (поток, группа `notify`): одна строка `notify.outbox` на событие, `INSERT … ON CONFLICT
+  (post_id) DO NOTHING`, коммит смещения после записи; некорректное событие → логируется и пропускается; ошибка
+  БД → возврат к смещению, пауза 2 с, повтор. Повторно доставленное событие не создаёт второго уведомления.
+- **`GET /outbox?author=&limit=`** (1–50, по умолчанию 20) → `{author, notifications[{post_id, author,
+  created_at}]}` в порядке `created_at DESC, post_id DESC`.
 
 ## 6.11 База данных (`db/migrations`)
 
@@ -310,6 +324,10 @@ sequenceDiagram
 | `V1__service_roles.sql` | роли `content_svc`, `search_svc` (`LOGIN`, пароль из плейсхолдеров Flyway `${content_db_password}`, `${search_db_password}`); `REVOKE CREATE ON SCHEMA public FROM PUBLIC` |
 | `V2__content_posts.sql` | схема `content`; `content.posts` |
 | `V3__search_documents.sql` | схема `search`; `search.documents` + индексы |
+| `V4__content_posts_author_idx.sql` | индекс `(author, created_at DESC, id DESC)` для списка по автору |
+| `V5__content_posts_tags.sql` | `content.posts.tags text[] NOT NULL DEFAULT '{}'`, не больше 5 |
+| `V6__search_documents_tags.sql` | `search.documents.tags` + индекс GIN |
+| `V7__notify_outbox.sql` | роль `notify_svc` (плейсхолдер `${notify_db_password}`); схема `notify`; `notify.outbox` + индекс |
 
 ```mermaid
 erDiagram
@@ -317,7 +335,8 @@ erDiagram
         bigint id PK "GENERATED ALWAYS AS IDENTITY"
         text title "CHECK длина 1..200"
         text body
-        text author
+        text author "btree (author, created_at DESC, id DESC)"
+        text[] tags "DEFAULT {}, не больше 5"
         timestamptz created_at "DEFAULT now()"
     }
     SEARCH_DOCUMENTS {
@@ -326,14 +345,23 @@ erDiagram
         text body
         text author "индекс btree"
         tsvector tsv "GENERATED: title вес A, body вес B; индекс GIN"
+        text[] tags "индекс GIN"
+    }
+    NOTIFY_OUTBOX {
+        bigint post_id PK "= content.posts.id (через событие, без FK)"
+        text author "btree (author, created_at DESC, post_id DESC)"
+        timestamptz created_at
+        timestamptz recorded_at "DEFAULT now()"
     }
     CONTENT_POSTS ||..o| SEARCH_DOCUMENTS : "content.post.created"
+    CONTENT_POSTS ||..o| NOTIFY_OUTBOX : "content.post.created"
 ```
 
 Права: `content_svc` → `USAGE` на `content`, `SELECT, INSERT` на `content.posts`. `search_svc` → `USAGE` на
-`search`, `SELECT, INSERT, UPDATE` на `search.documents`. Владелец объектов — пользователь миграций (`postgres`).
+`search`, `SELECT, INSERT, UPDATE` на `search.documents`. `notify_svc` → `USAGE` на `notify`, `SELECT, INSERT`
+на `notify.outbox`. Владелец объектов — пользователь миграций (`postgres`).
 One-shot `migrate` запускает Flyway с `FLYWAY_CONNECT_RETRIES=30`; плейсхолдеры берутся из
-`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD` — тех же переменных, что и в `DB_DSN` каждого сервиса.
+`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD` / `NOTIFY_DB_PASSWORD` — тех же переменных, что и в `DB_DSN` каждого сервиса.
 
 ## 6.12 Eval (`eval/run_eval.py`)
 
@@ -388,7 +416,7 @@ pull request и `HEAD~1` для push.
 | `DATA_DIR` | `/var/tmp/air-harness` | постоянные данные (postgres, kafka, ollama) |
 | `GATEWAY_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 9090 / 11434 | порты на хосте |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | база данных |
-| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD` | `content-dev`, `search-dev` | роли сервисов |
+| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | роли сервисов |
 | `LOG_LEVEL` | `INFO` | сервисы |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | куча брокера |
 | `*_TAG` | закреплены | версии образов |
