@@ -2,7 +2,8 @@
 """Inferential sensor: review the diff against the same rubric the coding agent was given.
 
 OpenAI-compatible endpoint (vLLM, Ollama, ...). Stdlib only. Exit 1 if the reviewer reports an ERROR,
-127 if the reviewer is unreachable or answers nonsense (the runner reports the sensor BLIND, not the code bad).
+125 if no endpoint is configured (LLM_BASE_URL empty: the runner reports SKIPPED), 127 if the configured reviewer is
+unreachable or answers nonsense (the runner reports the sensor BLIND, not the code bad).
 Advisory in harness.yaml until its precision on real diffs has been measured.
 
 What is reviewed (REVIEW_DIFF_BASE):
@@ -21,7 +22,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-BASE = os.environ.get("LLM_BASE_URL", "http://host.docker.internal:11434/v1").rstrip("/")
+BASE = os.environ.get("LLM_BASE_URL", "").rstrip("/")             # empty: review is off (opt-in)
 MODEL = os.environ.get("REVIEW_MODEL") or os.environ.get("LLM_MODEL", "qwen3:8b")
 KEY = os.environ.get("LLM_API_KEY", "not-needed")
 NO_THINK = os.environ.get("LLM_NO_THINK", "true").lower() == "true"
@@ -85,6 +86,10 @@ def ask(rubric: str, diff: str, truncated: bool) -> str:
 
 
 def main() -> int:
+    if not BASE:
+        print("review: skipped — no LLM configured. Set LLM_BASE_URL (and LLM_MODEL) in .env, e.g. "
+              "LLM_BASE_URL=http://host.docker.internal:11434/v1 after ./run.sh --llm")
+        return 125
     diff = collect_diff()
     if not diff.strip():
         print("review: empty diff, nothing to review")

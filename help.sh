@@ -97,8 +97,8 @@ topic_agent() {
   kv "git config core.hooksPath .githooks" "blocking static sensors before every commit"
   kv ".github/workflows/harness.yml" "selftest, fast loop, stack + pipeline on every PR; continuous nightly"
   h "Review agent (advisory)"
-  p "Needs an OpenAI-compatible LLM: ./run.sh --llm (local Ollama), or set LLM_BASE_URL / LLM_MODEL in .env."
-  p "Without one it reports BLIND, which never blocks."
+  p "Opt-in. Needs an OpenAI-compatible LLM: ./run.sh --llm (local Ollama) or LLM_BASE_URL / LLM_MODEL in .env."
+  p "Not configured → SKIPPED (expected). Configured but unreachable → BLIND (fix the endpoint). Never blocks."
 }
 
 topic_prompts() {
@@ -133,7 +133,8 @@ topic_troubleshoot() {
   kv "service unhealthy / exited" "docker compose ps -a, then make logs s=<service>"
   kv "migrate exited with an error" "make logs s=migrate — a migration failed; never edit an applied one, add V<next>"
   kv "subpath / volume errors" "Docker Engine 26+ and Compose 2.24+ are required (volume subpath)"
-  kv "review-agent BLIND" "no LLM reachable: ./run.sh --llm or set LLM_BASE_URL (advisory, never blocks)"
+  kv "review-agent SKIPPED" "no LLM configured — expected; to enable: ./run.sh --llm or LLM_BASE_URL in .env"
+  kv "review-agent BLIND" "LLM_BASE_URL is set but unreachable: check the endpoint (advisory, never blocks)"
   kv "host plane needs PyYAML" "pip install pyyaml (only for harness-integration / -pipeline)"
   kv "start from scratch" "make purge (deletes DATA_DIR content), then ./run.sh"
   kv "stale results in the report" "re-run: make harness-fast — results from another commit are marked stale"
