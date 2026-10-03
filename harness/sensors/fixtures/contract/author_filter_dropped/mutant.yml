@@ -1,0 +1,5 @@
+# GET /api/posts?author= forwards without the author: someone else's posts leak into the list.
+target: gateway
+file: app.py
+find: 'return await forward("content", "GET", "/posts", params={"author": author, "limit": limit})'
+replace: 'return await forward("content", "GET", "/posts", params={"limit": limit})'

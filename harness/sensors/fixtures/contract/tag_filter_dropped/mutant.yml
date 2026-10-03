@@ -1,0 +1,5 @@
+# GET /api/search?tag= silently ignores the tag.
+target: gateway
+file: app.py
+find: ' | ({"tag": tag} if tag else {})'
+replace: ''

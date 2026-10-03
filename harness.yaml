@@ -4,7 +4,7 @@
 harness: 1
 template:
   name: py-services-pg-kafka          # the topology this harness regulates (variety reduction)
-  version: 0.3.5                      # projects pin this; upgrades arrive as a new runner image + manifest diff
+  version: 0.3.6                      # projects pin this; upgrades arrive as a new runner image + manifest diff
 
 categories: [maintainability, architecture, behaviour]
 
@@ -150,6 +150,9 @@ sensors:
     run: make -s contract
     pairs_with: [contract-readme, skill-new-endpoint, agents-md]
     fix_hint: The contract suite is the spec. Change the implementation; change a contract test only when the user asked for new behaviour.
+    selftest:                         # host plane, stack up: a second gateway built from a mutant must fail the suite
+      fixtures: harness/sensors/fixtures/contract
+      run: python3 harness/sensors/mutate.py {fixture}
 
   - id: eval
     kind: computational               # the gate is recall@5 / MRR@10; the optional LLM judge@1 is reported, never gates

@@ -56,7 +56,7 @@ docs/                         эта документация
 | dead-code | computational | static | continuous | нет | `vulture … --min-confidence 80` |
 | deps-audit | computational | live | continuous | нет | `harness/sensors/deps_audit.py` (pip-audit по каждому файлу requirements) |
 
-Помощники selftest: `harness/sensors/mutate.py` применяет один мутант из `harness/sensors/fixtures/unit/<name>/mutant.yml` к копии `libs/common` и запускает на ней unit-тесты; мутант, который больше не применяется, завершается с кодом 126 (BLIND).
+Помощники selftest: `harness/sensors/mutate.py` применяет один мутант (`harness/sensors/fixtures/{unit,contract}/<name>/mutant.yml`) к копии кода: `target: unit` монтирует изменённый `libs/common` в unit-тесты, `target: gateway` запускает второй, изменённый gateway рядом со стеком и направляет на него контрактный набор; мутант, который больше не применяется, завершается с кодом 126 (BLIND).
 
 ### Гайды
 

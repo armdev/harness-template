@@ -56,7 +56,7 @@ docs/                         this documentation
 | dead-code | computational | static | continuous | no | `vulture … --min-confidence 80` |
 | deps-audit | computational | live | continuous | no | `harness/sensors/deps_audit.py` (pip-audit on each requirements file) |
 
-Selftest helpers: `harness/sensors/mutate.py` applies one mutant from `harness/sensors/fixtures/unit/<name>/mutant.yml` to a copy of `libs/common` and runs the unit tests on it; a mutant that no longer applies exits 126 (BLIND).
+Selftest helpers: `harness/sensors/mutate.py` applies one mutant (`harness/sensors/fixtures/{unit,contract}/<name>/mutant.yml`) to a copy of the code: `target: unit` mounts a mutated `libs/common` into the unit tests, `target: gateway` runs a second, mutated gateway next to the stack and points the contract suite at it; a mutant that no longer applies exits 126 (BLIND).
 
 ### Guides
 

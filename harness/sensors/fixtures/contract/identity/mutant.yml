@@ -1,0 +1,5 @@
+# The machinery itself: a second, unmodified gateway must pass the whole contract.
+target: gateway
+file: app.py
+find: 'return RedirectResponse("/docs")'
+replace: 'return RedirectResponse("/docs")'
