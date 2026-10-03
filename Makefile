@@ -7,7 +7,7 @@ export HARNESS_GID := $(shell id -g)
 COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-observability down ps logs build test contract eval llm clean purge
+.PHONY: help up up-observability down ps logs build test contract eval llm clean purge adoption-test
 
 help:                    ## list targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-22s %s\n", $$1, $$2}'
@@ -53,3 +53,12 @@ purge: clean             ## clean + delete DATA_DIR contents (database, topics, 
 	docker run --rm -v "$(strip $(DATA_DIR)):/data" busybox:1.37 sh -c 'rm -rf /data/postgres /data/kafka /data/ollama'
 
 include harness.mk
+
+adoption-test:           ## install the harness into a fresh sample project; it must be GREEN on its first run
+	@set -e; d=$$(mktemp -d); trap 'rm -rf "$$d"' EXIT; p="$$d/sample"; mkdir -p "$$p/app"; \
+	printf 'def add(a, b):\n    return a + b\n' > "$$p/app/calc.py"; \
+	printf 'services:\n  app:\n    image: python:3.12-slim\n' > "$$p/docker-compose.yml"; \
+	git -C "$$p" init -q; git -C "$$p" add -A; git -C "$$p" -c user.email=ci@local -c user.name=ci commit -qm init; \
+	python3 harness/install.py "$$p"; \
+	$(MAKE) -s -C "$$p" harness-coverage harness-selftest harness-static; \
+	head -1 "$$p/.harness/report.md" | grep -q GREEN && echo "adoption-test: GREEN on first run"

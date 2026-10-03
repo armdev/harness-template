@@ -1,5 +1,24 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.4.0
+
+- **`harness/install.py <project>` — adopting the harness is a command, not a copy list.** The documented
+  `cp -r …` path had gone RED on its first run in any other project: the manifest pointed ruff and semgrep at
+  `services libs contract eval`, migrations at `db/migrations`, and coverage at this repository's contract and eval
+  guides. The installer copies the machinery (runner, sensors, rules, rubric, generic skills and prompts, hooks,
+  make targets, sensor containers) and writes a manifest that fits the project as it is: ruff, semgrep-local,
+  review-agent, dead-code and deps-audit on its own source directories (`--src`, detected by default); topology
+  with a compose file; migrations with `db/migrations`; `unit` (`make -s test`) with a `test:` target. Categories
+  no installed sensor checks are left out instead of claimed. The project's `AGENTS.md`, `CLAUDE.md`, ruff
+  configuration, `.claude/settings.json` and `.githooks` are written only when missing (templates in
+  `harness/templates/`). Idempotent.
+- **`make adoption-test`** (CI, every PR): install into a fresh sample project, then `harness-coverage`,
+  `harness-selftest` and `harness-static` must be GREEN on the first run.
+- `review.py` reads `REVIEW_SCOPE` (the paths the rubric governs); `deps_audit.py` takes directories to search;
+  `harness.mk` uses `docker-compose.yml` only when the project has one.
+- First-run impact on existing projects: none; projects that copied the harness by hand can re-run the installer
+  to get a manifest that matches their layout.
+
 ## 0.3.7
 
 - **Seeded defects for `review-agent`**, the last sensor without them. `harness/sensors/fixtures/review/` holds

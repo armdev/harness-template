@@ -87,9 +87,12 @@ Each use case names the actor, the trigger, what the harness does and what "done
 ## UC-11 · Adopt the harness in another project
 
 - **Actor:** platform team
-- **Flow:** copy `harness/`, `harness.yaml`, `compose.harness.yml`, `harness.mk`, `AGENTS.md`, `CLAUDE.md`,
-  `.claude/`, `.githooks/`, `pyproject.toml`; `include harness.mk`; add `x-harness` paths to the project's
-  compose file; `make harness-coverage && make harness-selftest && make harness-fast`.
+- **Flow:** `python3 harness/install.py <project>` → it copies the machinery and writes a manifest with the
+  sensors that apply (topology with a compose file, migrations with `db/migrations`, unit with a `make test`
+  target), never overwriting the project's `AGENTS.md`, `CLAUDE.md` or ruff configuration →
+  `make harness-coverage && make harness-selftest && make harness-fast` in the project.
+- **Done:** GREEN on the first run (CI proves it on a fresh sample project: `make adoption-test`); coverage claims
+  only the categories the installed sensors check.
 - **Versioning:** the runner image is pinned (`HARNESS_IMAGE`); the manifest and guides belong to the project;
   `template.version` records which upstream version it was reconciled with.
 

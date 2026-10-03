@@ -1,0 +1,10 @@
+# Written by harness/install.py because the project had no ruff configuration. Edit freely.
+line-length = 120
+extend-exclude = ["harness/sensors/fixtures"]   # seeded defects: wrong on purpose
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE", "SIM"]
+ignore = ["S101"]   # assert is how pytest checks
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S", "BLE"]

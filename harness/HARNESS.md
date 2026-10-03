@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.3.7
+# Harness template `py-services-pg-kafka` v0.4.0
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.
@@ -48,18 +48,18 @@ start with `# expect: <text the sensor must print>` or `# expect: clean`.
 
 ## Instantiate
 
-In this repository everything is already wired (`make up`, `make harness-fast`). For another project of the
-same topology:
+In this repository everything is already wired (`make up`, `make harness-fast`). For another project:
 
 ```bash
-cp -r harness harness.yaml compose.harness.yml harness.mk AGENTS.md CLAUDE.md .claude .githooks pyproject.toml <project>/
-echo 'include harness.mk' >> <project>/Makefile
-echo '.harness/' >> <project>/.gitignore
-# in <project>/docker-compose.yml: x-harness: { alerts: <alert rules file>, env_example: .env.example }
-make harness-coverage      # gaps before you start
-make harness-selftest      # sensors fire on seeded defects (+ harness-selftest-live / -host: network, docker)
-make harness-fast          # first real run; read .harness/report.md
+python3 harness/install.py <project>     # copies the machinery, writes a manifest that fits <project>
+cd <project>
+make harness-coverage && make harness-selftest && make harness-fast   # GREEN on a clean project
 ```
+
+`harness/install.py` writes a manifest with the sensors that apply to the project as it is (lint, semgrep, dead
+code, dependency audit, review agent; topology with a compose file, migrations with `db/migrations`, unit with a
+`make test` target) and never overwrites the project's own guides. Grow it from this manifest as the project grows:
+contract, eval and prom-rules entries, `x-harness: { alerts: …, env_example: … }` in the compose file.
 
 The fast loop sits where the agent and the human both hit it:
 
