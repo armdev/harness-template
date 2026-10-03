@@ -33,7 +33,8 @@ MAX_DIFF = int(os.environ.get("REVIEW_MAX_DIFF_CHARS", "60000"))
 RUBRIC = Path(os.environ.get("REVIEW_RUBRIC", "harness/review/RUBRIC.md"))
 PROMPT = Path(os.environ.get("REVIEW_PROMPT", "harness/prompts/review.md"))
 TIMEOUT = int(os.environ.get("REVIEW_TIMEOUT", "180"))
-SCOPE = ("services", "libs", "db", "contract", "docker-compose.yml", "infra")   # what the rubric governs
+# what the rubric governs; harness/install.py sets REVIEW_SCOPE to the adopting project's sources
+SCOPE = tuple(os.environ.get("REVIEW_SCOPE", "services libs db contract docker-compose.yml infra").split())
 
 
 def git(*args: str) -> str:

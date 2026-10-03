@@ -135,7 +135,13 @@ their own manifest, guides and rules; see `harness/HARNESS.md` (design, versioni
 `harness/CHANGELOG.md`.
 
 ```bash
-cp -r harness harness.yaml compose.harness.yml harness.mk AGENTS.md CLAUDE.md .claude .githooks pyproject.toml <project>/
-echo 'include harness.mk' >> <project>/Makefile && echo '.harness/' >> <project>/.gitignore
-make harness-coverage && make harness-selftest && make harness-fast
+python3 harness/install.py <project>     # copies the machinery, writes a manifest that fits <project>
+cd <project>
+make harness-coverage && make harness-selftest && make harness-fast   # GREEN on a clean project
 ```
+
+The installer keeps what applies to the project as it is: lint, organisation rules, dead code, vulnerable
+dependencies and the review agent on its own source directories; topology with a compose file; migrations with a
+`db/migrations`; a `unit` sensor when the Makefile has a `test:` target. It never overwrites the project's
+`AGENTS.md`, `CLAUDE.md` or ruff configuration. `make adoption-test` (run in CI) proves a fresh project is GREEN on
+its first run.

@@ -38,6 +38,7 @@ jobs:
           make harness-test
           make harness-coverage
           make harness-selftest
+          make adoption-test
 
       - name: Static sensors (blocking)
         run: make harness-static

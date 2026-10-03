@@ -89,9 +89,12 @@
 ## UC-11 · Внедрить harness в другой проект
 
 - **Участник:** платформенная команда
-- **Ход:** скопировать `harness/`, `harness.yaml`, `compose.harness.yml`, `harness.mk`, `AGENTS.md`, `CLAUDE.md`,
-  `.claude/`, `.githooks/`, `pyproject.toml`; добавить `include harness.mk`; добавить пути `x-harness` в
-  compose-файл проекта; `make harness-coverage && make harness-selftest && make harness-fast`.
+- **Ход:** `python3 harness/install.py <project>` → копирует механизм и пишет манифест с подходящими сенсорами
+  (topology при наличии compose-файла, migrations при наличии `db/migrations`, unit при наличии цели `make test`),
+  не перезаписывая `AGENTS.md`, `CLAUDE.md` и конфигурацию ruff проекта →
+  `make harness-coverage && make harness-selftest && make harness-fast` в проекте.
+- **Готово:** GREEN с первого запуска (CI доказывает это на свежем проекте-образце: `make adoption-test`); coverage
+  заявляет только те категории, которые проверяют установленные сенсоры.
 - **Версионирование:** образ раннера закреплён (`HARNESS_IMAGE`); манифест и гайды принадлежат проекту;
   `template.version` фиксирует, с какой версией апстрима было последнее согласование.
 

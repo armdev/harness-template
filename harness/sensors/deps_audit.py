@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Computational sensor: known-vulnerable pinned dependencies (pip-audit against the vulnerability database).
 
-  deps_audit.py [FILE ...]   default: every requirements*.txt under services/, libs/, tools/
+  deps_audit.py [PATH ...]   files are audited as given; directories are searched for requirements*.txt
+                             (default: services/, libs/, tools/)
 
 pip-audit exits 1 both when it found vulnerabilities and when it could not run at all (no network, a noexec /tmp,
 no pip in the throwaway venv). Exit 1 only for the first; 126 for the second, so the runner reports the sensor
@@ -32,7 +33,8 @@ def audit(path: str) -> int:
 
 
 def main(argv: list[str]) -> int:
-    files = argv or sorted(str(f) for d in ("services", "libs", "tools") for f in Path(d).rglob("requirements*.txt"))
+    paths = [Path(a) for a in argv] or [d for d in (Path("services"), Path("libs"), Path("tools")) if d.is_dir()]
+    files = sorted(str(f) for p in paths for f in (p.rglob("requirements*.txt") if p.is_dir() else [p]))
     try:
         codes = [audit(f) for f in files]
     except FileNotFoundError:                           # pip-audit not installed in this image

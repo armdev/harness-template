@@ -1,7 +1,7 @@
 # Harness targets. In the project Makefile: `include harness.mk`
 # Container planes need only docker; the host plane needs python3 with PyYAML (`make harness-doctor`).
 HC := HARNESS_UID=$(shell id -u) HARNESS_GID=$(shell id -g) \
-      docker compose -f docker-compose.yml -f compose.harness.yml
+      docker compose $(if $(wildcard docker-compose.yml),-f docker-compose.yml) -f compose.harness.yml
 H  := python3 harness/harness.py
 stage ?= pre-commit
 OUT_DIR := .harness
