@@ -53,6 +53,12 @@ async def create_post(post: dict = Body(examples=[POST_EXAMPLE])) -> Response:  
     return await forward("content", "POST", "/posts", json=post)
 
 
+@app.get("/api/posts", summary="List one author's posts, newest first")
+async def list_posts(author: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
+                     limit: int = Query(20, ge=1, le=50)) -> Response:
+    return await forward("content", "GET", "/posts", params={"author": author, "limit": limit})
+
+
 @app.get("/api/posts/{post_id}", summary="Read a post")
 async def get_post(post_id: int) -> Response:
     return await forward("content", "GET", f"/posts/{post_id}")

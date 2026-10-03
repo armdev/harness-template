@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from confluent_kafka import Producer
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field
@@ -37,15 +37,23 @@ app = create_app("content", lifespan=lifespan)
 auth = require_caller()
 
 
+AUTHOR_PATTERN = r"^[A-Za-z0-9._-]+$"
+
+
 class PostIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=20000)
-    author: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
+    author: str = Field(min_length=1, max_length=64, pattern=AUTHOR_PATTERN)
 
 
 class Post(PostIn):
     id: int
     created_at: datetime
+
+
+class AuthorPosts(BaseModel):
+    author: str
+    posts: list[Post]
 
 
 @app.post("/posts", status_code=201, response_model=Post)
@@ -73,3 +81,17 @@ def get_post(post_id: int, _caller: str = Depends(auth)) -> Post:
     if row is None:
         raise HTTPException(status_code=404, detail="post not found")
     return Post(**row)
+
+
+@app.get("/posts", response_model=AuthorPosts)
+def list_posts(author: str = Query(min_length=1, max_length=64, pattern=AUTHOR_PATTERN),
+               limit: int = Query(20, ge=1, le=50), _caller: str = Depends(auth)) -> AuthorPosts:
+    with pool.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, title, body, author, created_at FROM content.posts
+             WHERE author = %s ORDER BY created_at DESC, id DESC LIMIT %s
+            """,
+            (author, limit),
+        ).fetchall()
+    return AuthorPosts(author=author, posts=[Post(**r) for r in rows])
