@@ -21,6 +21,7 @@ clients: dict[str, SignedClient] = {}
 async def lifespan(_app):
     clients["content"] = SignedClient(os.environ["CONTENT_URL"])
     clients["search"] = SignedClient(os.environ["SEARCH_URL"])
+    clients["notify"] = SignedClient(os.environ["NOTIFY_URL"])
     yield
     for c in clients.values():
         c.close()
@@ -71,3 +72,9 @@ async def search(q: str = Query(min_length=1, max_length=200), author: str | Non
                  limit: int = Query(10, ge=1, le=50)) -> Response:
     params = {"q": q, "limit": limit} | ({"author": author} if author else {}) | ({"tag": tag} if tag else {})
     return await forward("search", "GET", "/search", params=params)
+
+
+@app.get("/api/notifications", summary="Notifications recorded for an author's posts, newest first")
+async def notifications(author: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
+                        limit: int = Query(20, ge=1, le=50)) -> Response:
+    return await forward("notify", "GET", "/outbox", params={"author": author, "limit": limit})

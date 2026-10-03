@@ -1,9 +1,9 @@
 # air-harness — the compose file is the architecture: services, identities, who may call whom, database roles.
 # `make up` starts the stack; `make harness-fast` checks this file (topology sensor) before anything runs.
 #
-# Call graph (signed, Ed25519):   gateway -> content, gateway -> search
-# Events (Kafka):                 content --content.post.created--> search
-# Data:                           postgres (content_svc, search_svc), kafka — both under DATA_DIR
+# Call graph (signed, Ed25519):   gateway -> content, gateway -> search, gateway -> notify
+# Events (Kafka):                 content --content.post.created--> search, notify
+# Data:                           postgres (content_svc, search_svc, notify_svc), kafka — both under DATA_DIR
 
 name: air-harness
 
@@ -41,7 +41,7 @@ services:
     build: { context: ., dockerfile: libs/common/Dockerfile }
     image: air-harness/service-keys:${APP_TAG:-dev}   # tag of locally built application images
     user: "0:0"                             # chowns each private key to the service uid (10001)
-    entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search"]
+    entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search", "notify"]
     volumes:
       - service-keys:/keys
 
@@ -56,6 +56,7 @@ services:
       FLYWAY_CONNECT_RETRIES: "30"
       FLYWAY_PLACEHOLDERS_CONTENT_DB_PASSWORD: ${CONTENT_DB_PASSWORD:-content-dev}
       FLYWAY_PLACEHOLDERS_SEARCH_DB_PASSWORD: ${SEARCH_DB_PASSWORD:-search-dev}
+      FLYWAY_PLACEHOLDERS_NOTIFY_DB_PASSWORD: ${NOTIFY_DB_PASSWORD:-notify-dev}
     volumes:
       - ./db/migrations:/flyway/sql:ro
     depends_on:
@@ -134,6 +135,7 @@ services:
       SERVICE_NAME: gateway
       CONTENT_URL: http://content:8000
       SEARCH_URL: http://search:8000
+      NOTIFY_URL: http://notify:8000
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: gateway } }
       - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
@@ -141,6 +143,7 @@ services:
       service-keys: { condition: service_completed_successfully }
       content: { condition: service_healthy }
       search: { condition: service_healthy }
+      notify: { condition: service_healthy }
 
   content:                                  # owns posts; publishes content.post.created
     <<: [*py, *internal]
@@ -172,6 +175,24 @@ services:
       KAFKA_BOOTSTRAP: kafka:9092
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: search } }
+      - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
+    depends_on:
+      service-keys: { condition: service_completed_successfully }
+      migrate: { condition: service_completed_successfully }
+      kafka-init: { condition: service_completed_successfully }
+
+  notify:                                   # records a notification for every new post (stand-in for e-mail)
+    <<: [*py, *internal]
+    build: { context: ., dockerfile: services/notify/Dockerfile }
+    image: air-harness/notify:${APP_TAG:-dev}
+    environment:
+      <<: *py-env
+      SERVICE_NAME: notify
+      TRUSTED_CALLERS: gateway
+      DB_DSN: postgresql://notify_svc:${NOTIFY_DB_PASSWORD:-notify-dev}@postgres:5432/${POSTGRES_DB:-air_harness}
+      KAFKA_BOOTSTRAP: kafka:9092
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: notify } }
       - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
     depends_on:
       service-keys: { condition: service_completed_successfully }
