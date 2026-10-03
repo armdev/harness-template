@@ -200,7 +200,7 @@ def cmd_selftest(a: argparse.Namespace) -> int:
             print(f"[ skip  ] {s['id']:22} no seeded defects — firing ability unproven")
             continue
         if s["plane"] not in planes:
-            target = "make harness-selftest-live" if s["plane"] == "live" else f"selftest --plane {s['plane']}"
+            target = {"static": "make harness-selftest"}.get(s["plane"], f"make harness-selftest-{s['plane']}")
             print(f"[ skip  ] {s['id']:22} plane {s['plane']} — proven by {target}")
             continue
         fixtures = sorted(f for f in (ROOT / st["fixtures"]).iterdir() if not f.name.startswith("."))
@@ -209,7 +209,8 @@ def cmd_selftest(a: argparse.Namespace) -> int:
             rc = 1
         for fx in fixtures:
             expect = fixture_expectation(fx)
-            _, code, out, _ = execute(st["run"].format(fixture=fx.relative_to(ROOT)))
+            cmd = st["run"].replace("{fixture}", str(fx.relative_to(ROOT)))   # not .format(): commands use ${VAR:-x}
+            _, code, out, _ = execute(cmd)
             if expect == "clean":
                 ok, label = code == 0, "quiet" if code == 0 else "NOISY"
             else:

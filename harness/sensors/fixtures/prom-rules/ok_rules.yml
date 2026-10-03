@@ -1,0 +1,9 @@
+# expect: clean
+groups:
+  - name: seeded
+    rules:
+      - alert: ServiceDown
+        expr: up{job="svc"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "svc is not being scraped" }

@@ -154,3 +154,15 @@ def test_review_without_llm_is_skipped(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(review, "collect_diff", lambda: "diff --git a/x b/x\n+change\n")
     assert review.main() == 125
     assert "LLM_BASE_URL" in capsys.readouterr().out
+
+
+def test_selftest_command_may_use_shell_parameter_defaults(runner, tmp_path):
+    fx = tmp_path / "fx"
+    fx.mkdir()
+    (fx / "bad.txt").write_text("# expect: BOOM\n")
+    manifest = {"harness": 1, "categories": ["maintainability"], "guides": [], "sensors": [{
+        "id": "tagged", "kind": "computational", "category": "maintainability", "plane": "host",
+        "stages": ["pipeline"], "run": "true",
+        "selftest": {"fixtures": "fx", "run": "echo ${UNSET_TAG:-BOOM} {fixture}; exit 1"}}]}
+    setup(tmp_path, manifest)
+    assert runner.cmd_selftest(argparse.Namespace(only=None, plane="host")) == 0

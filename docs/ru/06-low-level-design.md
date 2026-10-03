@@ -111,7 +111,7 @@ flowchart TD
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.3.2 }
+template: { name: py-services-pg-kafka, version: 0.3.3 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <уникальный>             # на него ссылается sensors.pairs_with
@@ -135,7 +135,7 @@ sensors:
 
 ## 6.3 Контейнеры сенсоров (`compose.harness.yml`, `harness.mk`)
 
-Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.2}`, профиль `harness`,
+Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.3}`, профиль `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (make подставляет вызвавшего пользователя), `read_only: true`,
 `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, репозиторий в `/work:ro` и `./.harness` в `/out`.
 
@@ -419,7 +419,7 @@ flowchart TD
 
 Триггеры: pull request, push в `main`, ночью (03:17 UTC), вручную. Один джоб на `ubuntu-latest`:
 checkout (полная история) → setup-python 3.12 + PyYAML, `DATA_DIR=$RUNNER_TEMP/air-harness-data` →
-`make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest` → `make harness-static` →
+`make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest`, `harness-selftest-host` → `make harness-static` →
 ночью: `make harness-selftest-live`, `make harness-continuous`; иначе `./run.sh --full` → отчёт и отчёт eval в сводку джоба → логи сервисов
 при провале → `.harness/` как артефакт → `make clean`. `MIGRATIONS_BASE` — `origin/<базовая ветка>` для
 pull request и `HEAD~1` для push.
@@ -441,7 +441,7 @@ pull request и `HEAD~1` для push.
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | пусто (ревью пропускается), `qwen3:8b` | агент-ревьюер (включается явно) |
 | `REVIEW_DIFF_BASE` | пусто | что именно ревьюит ревьюер |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, пусто | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.2, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.3.3, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
 Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).
