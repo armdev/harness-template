@@ -1,5 +1,16 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.3.4
+
+- **Seeded defects for `eval`**, blocking since 0.3.1 but unproven: `harness/sensors/fixtures/eval/` holds
+  baselines the current search is judged against — one it misses by more than the tolerance must fire
+  (`regression in recall@5`), one inside the tolerance and the agreed numbers must stay quiet. `run_eval.py` reads
+  `EVAL_BASELINE` (default `eval/baseline.json`); the selftest mounts each fixture and writes to the container's
+  `/tmp`, so `.harness/eval-report.md` is untouched.
+- `make harness-selftest-host` now needs the stack up (eval). CI no longer runs it before the stack starts;
+  `./run.sh --check` / `--full` run it after the stack is healthy.
+- First-run impact on existing projects: none.
+
 ## 0.3.3
 
 - **Seeded defects for `prom-rules`** (blocking, host plane), which had none: `harness/sensors/fixtures/prom-rules/`

@@ -21,6 +21,7 @@ HERE = Path(__file__).resolve().parent
 GATEWAY = os.environ.get("GATEWAY_URL", "http://localhost:8080")
 OUT = Path(os.environ.get("EVAL_OUT", ".harness"))
 TOLERANCE = float(os.environ.get("EVAL_TOLERANCE", "0.05"))
+BASELINE = Path(os.environ.get("EVAL_BASELINE", HERE / "baseline.json"))   # the harness selftest swaps in fixtures
 JUDGE_URL = os.environ.get("JUDGE_BASE_URL", "").rstrip("/")
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "qwen3:8b")
 JUDGE_KEY = os.environ.get("JUDGE_API_KEY", "not-needed")
@@ -93,8 +94,7 @@ def main() -> int:
     if judged:
         metrics["judge@1"] = round(sum(judged) / (3 * len(judged)), 4)
 
-    baseline_path = HERE / "baseline.json"
-    baseline = json.loads(baseline_path.read_text())["metrics"] if baseline_path.exists() else {}
+    baseline = json.loads(BASELINE.read_text())["metrics"] if BASELINE.exists() else {}
     dropped = [k for k, v in metrics.items() if k in baseline and v < baseline[k] - TOLERANCE]
     regressions = [k for k in dropped if k in GATED]
 

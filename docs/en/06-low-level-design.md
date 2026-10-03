@@ -108,7 +108,7 @@ demote or remove.
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.3.3 }
+template: { name: py-services-pg-kafka, version: 0.3.4 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <unique>                 # referenced by sensors.pairs_with
@@ -132,7 +132,7 @@ sensors:
 
 ## 6.3 Sensor containers (`compose.harness.yml`, `harness.mk`)
 
-Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.3}`, profile `harness`,
+Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.3.4}`, profile `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (set by make to the invoking user), `read_only: true`, `tmpfs: /tmp`,
 `cap_drop: [ALL]`, `no-new-privileges`, the repository at `/work:ro` and `./.harness` at `/out`.
 
@@ -387,7 +387,9 @@ The `migrate` one-shot runs Flyway with `FLYWAY_CONNECT_RETRIES=30`; the placeho
      judge@1 = Σ grades / (3 · judged)
 4. Regression = recall@5 or MRR@10 < baseline − `EVAL_TOLERANCE` (0.05) → exit 1 (the sensor is blocking).
    A judge@1 drop is printed and marked `drop (advisory)`; it never fails the run.
-5. Writes `$EVAL_OUT/eval-results.json` (promote to `eval/baseline.json` deliberately) and `eval-report.md`.
+5. `EVAL_BASELINE` (default `eval/baseline.json`) lets the harness selftest judge the search against seeded
+   baselines in `harness/sensors/fixtures/eval/`.
+6. Writes `$EVAL_OUT/eval-results.json` (promote to `eval/baseline.json` deliberately) and `eval-report.md`.
 
 ## 6.13 `run.sh`
 
@@ -414,7 +416,7 @@ URL values come from the environment, then `.env`, then defaults (`PUBLIC_HOST`,
 
 Triggers: pull requests, pushes to `main`, nightly (03:17 UTC), manual. One job on `ubuntu-latest`:
 checkout (full history) → setup-python 3.12 + PyYAML, `DATA_DIR=$RUNNER_TEMP/air-harness-data` →
-`make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest`, `harness-selftest-host` → `make harness-static` →
+`make harness-build` → `make harness-test`, `harness-coverage`, `harness-selftest` → `make harness-static` →
 nightly: `make harness-selftest-live`, `make harness-continuous`; otherwise `./run.sh --full` → report and eval report into the job summary →
 service logs on failure → `.harness/` as an artifact → `make clean`. `MIGRATIONS_BASE` is
 `origin/<base branch>` on pull requests and `HEAD~1` on pushes.
@@ -436,7 +438,7 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | empty (review skipped), `qwen3:8b` | review agent (opt-in) |
 | `REVIEW_DIFF_BASE` | empty | what the reviewer reviews |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, empty | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.3.3, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.3.4, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | host name printed by `run.sh` |
 
 Next: [Demo](07-demo.md) · back to the [documentation index](../README.md).

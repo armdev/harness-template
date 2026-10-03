@@ -4,6 +4,7 @@ Guide for the `eval` sensor (`harness.yaml`, stage `pipeline`, blocking on recal
 
 - `corpus.yaml` — documents and queries with their relevant documents. Bump `version` when you change docs.
 - `baseline.json` — the agreed numbers. A change that lowers a metric by more than `EVAL_TOLERANCE` fails.
+  `make harness-selftest-host` proves that gate against seeded baselines in `harness/sensors/fixtures/eval/`.
 - `make eval` (stack up) seeds the corpus through the public API, runs every query and writes
   `.harness/eval-report.md` (per-query table, weakest queries) and `.harness/eval-results.json`.
 

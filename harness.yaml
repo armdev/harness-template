@@ -4,7 +4,7 @@
 harness: 1
 template:
   name: py-services-pg-kafka          # the topology this harness regulates (variety reduction)
-  version: 0.3.3                      # projects pin this; upgrades arrive as a new runner image + manifest diff
+  version: 0.3.4                      # projects pin this; upgrades arrive as a new runner image + manifest diff
 
 categories: [maintainability, architecture, behaviour]
 
@@ -157,6 +157,9 @@ sensors:
     run: make -s eval
     pairs_with: [eval-readme, prompts]
     fix_hint: Read .harness/eval-report.md (weakest queries first). Revert the ranking change, or accept the new numbers deliberately (copy .harness/eval-results.json over eval/baseline.json and say why in the PR).
+    selftest:                         # host plane, stack up: each fixture is a baseline the current search is judged against
+      fixtures: harness/sensors/fixtures/eval
+      run: docker compose --profile tools run --rm -v "$PWD/{fixture}:/fx:ro" -e EVAL_BASELINE=/fx/baseline.json -e EVAL_OUT=/tmp/eval eval
 
   - id: prom-rules
     kind: computational

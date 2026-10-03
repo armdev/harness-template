@@ -1,0 +1,1 @@
+{"corpus": "v1", "metrics": {"recall@5": 0.875, "mrr@10": 1.0}, "note": "the agreed numbers: must stay quiet"}
