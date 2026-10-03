@@ -94,6 +94,8 @@ Each use case names the actor, the trigger, what the harness does and what "done
 - **Done:** GREEN on the first run (CI proves it on a fresh sample project: `make adoption-test`); coverage claims
   only the categories the installed sensors check.
 - **Versioning:** the runner image is pinned (`HARNESS_IMAGE`); the manifest and guides belong to the project;
-  `template.version` records which upstream version it was reconciled with.
+  `template.version` records which upstream version it was reconciled with. To upgrade:
+  `python3 harness/install.py <project> --upgrade` from a newer air-harness: it replaces only the upstream-owned
+  machinery, bumps `template.version`, and lists the release notes since then and the sensors the project could add.
 
 Next: [Implemented architecture](04-architecture.md)

@@ -1,5 +1,24 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.4.1
+
+Three adoption bugs found by re-running the 0.4.0 installer on a project that had already customised its harness.
+
+- **Re-running the installer replaced the project's `harness.yaml`** (a custom sensor was lost), and `--force`
+  deleted the project's own semgrep rules. The manifest is now written only when missing, and files under `harness/`
+  are added when missing, never replaced, except on `--upgrade`.
+- **`--upgrade` replaces `--force`.** It replaces only the upstream-owned machinery (runner, sensor code, hooks,
+  harness tests, seeded defects, `rules/semgrep/python.yml`, `harness.mk`, `compose.harness.yml`), keeps the
+  manifest, rubric, skills, prompts and the project's own rules and fixtures, bumps `template.version`, and prints
+  the release notes since the project's version and the sensors it could add (offered, never forced) — the
+  "upgrades arrive as a new runner image + manifest diff" promise of `HARNESS.md`, now implemented.
+- **`make harness-test` failed in every adopted project**: the installer copied `test_install.py` without the
+  installer, and two tests assumed this repository's compose file and migrations. The installer test stays
+  upstream; those two tests skip when the project has no such files.
+- `make adoption-test` now also runs `harness-test` in the sample project and upgrades it: GREEN on first run and
+  after `--upgrade`.
+- First-run impact on existing projects: none.
+
 ## 0.4.0
 
 - **`harness/install.py <project>` — adopting the harness is a command, not a copy list.** The documented

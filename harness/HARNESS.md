@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.4.0
+# Harness template `py-services-pg-kafka` v0.4.1
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.
@@ -83,9 +83,14 @@ The fast loop sits where the agent and the human both hit it:
 
 Templates drift the moment they are copied. The split that keeps upgrades possible:
 
-- **Upstream-owned, pinned**: the runner image (`HARNESS_IMAGE`), the generic sensors, the semgrep rule pack,
-  the seeded defects. Upgraded by bumping a tag; release notes list new rules and their expected first-run impact.
-- **Project-owned, versioned with the code**: `harness.yaml`, `AGENTS.md`, project rules and fixtures.
+- **Upstream-owned, pinned**: the runner image (`HARNESS_IMAGE`), the runner and sensor code, hooks, the harness
+  tests, the semgrep rule pack (`rules/semgrep/python.yml`), the seeded defects, `harness.mk`,
+  `compose.harness.yml`. Upgraded with `python3 harness/install.py <project> --upgrade` from a newer checkout: it
+  replaces exactly these, bumps `template.version`, and prints the release notes since the project's version and
+  the sensors the project could add (offered, never forced). Release notes list new rules and their expected
+  first-run impact.
+- **Project-owned, versioned with the code**: `harness.yaml`, `AGENTS.md`, `CLAUDE.md`, the rubric, skills,
+  prompts, project rules and fixtures. Written once by the installer, never replaced by it.
   `template.version` in the manifest records which upstream it was last reconciled with.
 - **Contribution path**: a project rule that fires usefully for a month (`make harness-stats`) is a candidate
   for the upstream pack.

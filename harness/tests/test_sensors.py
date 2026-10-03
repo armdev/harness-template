@@ -11,6 +11,7 @@ def at_repo_root(monkeypatch):
     monkeypatch.chdir(ROOT)                                  # x-harness paths are relative to the repo root
 
 
+@pytest.mark.skipif(not (ROOT / "docker-compose.yml").exists(), reason="project has no compose file")
 def test_real_compose_file_is_clean(topology):
     assert topology.main("docker-compose.yml") == 0
     assert topology.findings == []
@@ -39,6 +40,7 @@ def test_defaults_resolve_innermost_first(topology):
     assert topology.resolve_defaults("http://${HOST:-${FALLBACK:-db}}:5432") == "http://db:5432"
 
 
+@pytest.mark.skipif(not (ROOT / "db" / "migrations").is_dir(), reason="project has no Flyway migrations")
 def test_real_migrations_are_clean(migrations, monkeypatch):
     monkeypatch.setenv("MIGRATIONS_BASE", "none")
     assert migrations.main("db/migrations", strict=True) == 0
