@@ -30,7 +30,8 @@ app = create_app("gateway", lifespan=lifespan, description=(
     "Public API of air-harness. Every call is forwarded, signed as `gateway`, to the service that owns the data. "
     "The contract suite in `contract/` is the specification of this API."))
 
-POST_EXAMPLE = {"title": "Hello air-harness", "body": "My first post, searchable in a second.", "author": "me"}
+POST_EXAMPLE = {"title": "Hello air-harness", "body": "My first post, searchable in a second.", "author": "me",
+                "tags": ["intro"]}
 
 
 async def forward(service: str, method: str, path: str, **kw) -> Response:
@@ -66,6 +67,7 @@ async def get_post(post_id: int) -> Response:
 
 @app.get("/api/search", summary="Full-text search over posts (indexed asynchronously via Kafka)")
 async def search(q: str = Query(min_length=1, max_length=200), author: str | None = None,
+                 tag: str | None = Query(None, pattern=r"^[a-z0-9-]{1,32}$"),
                  limit: int = Query(10, ge=1, le=50)) -> Response:
-    params = {"q": q, "limit": limit} | ({"author": author} if author else {})
+    params = {"q": q, "limit": limit} | ({"author": author} if author else {}) | ({"tag": tag} if tag else {})
     return await forward("search", "GET", "/search", params=params)

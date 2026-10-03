@@ -14,9 +14,10 @@ from psycopg_pool import ConnectionPool
 log = logging.getLogger(__name__)
 
 UPSERT = """
-INSERT INTO search.documents (post_id, title, body, author)
-VALUES (%(id)s, %(title)s, %(body)s, %(author)s)
-ON CONFLICT (post_id) DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, author = EXCLUDED.author
+INSERT INTO search.documents (post_id, title, body, author, tags)
+VALUES (%(id)s, %(title)s, %(body)s, %(author)s, %(tags)s)
+ON CONFLICT (post_id) DO UPDATE
+   SET title = EXCLUDED.title, body = EXCLUDED.body, author = EXCLUDED.author, tags = EXCLUDED.tags
 """
 
 
@@ -48,6 +49,7 @@ class Indexer:
                 continue
             try:
                 doc = json.loads(msg.value())
+                doc.setdefault("tags", [])               # events published before tags existed
                 with self.pool.connection() as conn:
                     conn.execute(UPSERT, doc)
             except (ValueError, KeyError) as e:
