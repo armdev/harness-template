@@ -57,7 +57,7 @@ topic_run() {
 
 topic_app() {
   h "./app.sh — the application alone, without the harness"
-  sed -n '2,12p' app.sh | sed 's/^# \{0,1\}/  /'
+  awk 'NR>1 && !/^#/{exit} NR>1' app.sh | sed 's/^# \{0,1\}/  /'
 }
 
 topic_commands() {

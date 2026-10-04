@@ -44,6 +44,10 @@ and notify pick the post up), and a page per post, tag and author. Chat uses a l
 (or `./app.sh up --llm`), any OpenAI-compatible endpoint set in `CHAT_LLM_URL`, or none: it then lists the posts.
 It calls only the gateway, through the `web` service ([LLD](06-low-level-design.md#web-rag-web)).
 
+**Sample data.** `./app.sh seed bank` loads 100 banking posts (loans, credit, debit, mortgages, cards, payments,
+fraud, compliance, treasury) linked by 35 tags; `./app.sh seed general` loads 24 engineering posts. Both go through
+the API and can be repeated safely; the portal's Analyze page offers the same datasets.
+
 **Only the application.** `./app.sh` starts the RAG system alone (web, gateway, content, search, notify, graph and
 their postgres, kafka, neo4j) with nothing from the harness: it needs only Docker and curl. `./app.sh test` runs
 the contract suite, `./app.sh status | logs <service> | down` do the obvious, and `./app.sh export <dir>` writes

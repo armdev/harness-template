@@ -15,7 +15,8 @@ STOPWORDS = frozenset({
     "should", "so", "some", "than", "that", "the", "their", "them", "then", "there", "these", "they", "this",
     "those", "to", "too", "us", "was", "we", "were", "what", "when", "where", "which", "who", "whom", "why", "will",
     "with", "would", "you", "your", "tell", "explain", "show", "give", "find", "know", "want", "need", "like",
-    "posts", "post", "write", "wrote", "written",
+    "posts", "post", "write", "wrote", "written", "anything", "something", "everything", "nothing", "thing", "things",
+    "stuff", "much", "many", "very", "really",
 })
 
 SYSTEM_PROMPT = """You are the assistant of a knowledge base of short posts. Answer the user's question using only \

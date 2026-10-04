@@ -96,7 +96,7 @@ docs/                         эта документация
 | Контрактные тесты | `contract/` | спецификация публичного API и границы аутентификации (32 теста) |
 | Unit-тесты | `libs/common/tests/` | подпись, проверка, подмена идентичности, изменение тела, рассинхрон часов, идемпотентность keygen |
 | Eval | `eval/` | корпус и запросы, `run_eval.py`, `baseline.json` |
-| Образ tools | `tools/Dockerfile` | pytest, httpx, PyYAML, `libs/common` для контейнеров contract, unit и eval |
+| Образ tools | `tools/Dockerfile`, `tools/seed.py` | pytest, httpx, PyYAML, `libs/common` для контейнеров contract, unit, eval и seed; `seed.py` загружает набор примеров через API (идемпотентно) |
 | Наблюдаемость | `infra/prometheus/` | задания скрейпа и алерты up / доля ошибок / задержка на сервис |
 
 ## 5.5 Интеграции

@@ -60,12 +60,14 @@ async function pageAnalyze() {
   if (!o.posts) {
     view.innerHTML = `<div class="card"><h1>Nothing to analyze yet</h1><p class="sub">The knowledge graph is empty.</p>
       <div class="row"><a href="#/write"><button class="primary">Write the first post</button></a>
-      <button id="samples">Load 24 sample posts</button><span id="sample-msg" class="hint"></span></div></div>`;
-    document.getElementById("samples").onclick = loadSamples;
+      <span class="hint">or load a sample dataset:</span></div>
+      <div id="datasets" class="datasets"></div><p id="sample-msg" class="hint"></p></div>`;
+    await showDatasets();
     return;
   }
   view.innerHTML = `<h1>Analyze</h1><p class="sub">The knowledge graph at a glance: what is written, by whom, and which topics belong together.
-      <button id="samples" class="small-btn">+ sample posts</button> <span id="sample-msg" class="hint"></span></p>
+      <button id="samples" class="small-btn">+ sample data</button> <span id="sample-msg" class="hint"></span></p>
+    <div id="datasets" class="datasets" hidden></div>
     <div class="grid g3">
       <div class="card tile post"><div class="n">${nf.format(o.posts)}</div><div class="l">posts</div></div>
       <div class="card tile author"><div class="n">${nf.format(o.authors)}</div><div class="l">authors</div></div>
@@ -82,23 +84,44 @@ async function pageAnalyze() {
     <div class="card"><h2>Strongest topic pairs</h2>${o.tag_links.length ? `<ul class="list">${o.tag_links.slice(0, 10).map(l =>
       `<li>${tagChip(l.source)} + ${tagChip(l.target)} <span class="m">together in ${nf.format(l.together)} posts</span></li>`).join("")}</ul>`
       : `<p class="empty">no two top tags share a post yet</p>`}</div>`;
-  document.getElementById("samples").onclick = loadSamples;
+  document.getElementById("samples").onclick = ev => { ev.target.hidden = true; showDatasets(); };
   const g = ForceGraph(document.getElementById("topic-map"), { onClick: n => go(nodeHref(n)) });
   g.add(o.top_tags.map(t => ({ id: T(t.tag), ref: t.tag, type: "tag", label: "#" + t.tag, size: t.posts, hint: `${t.posts} posts` })),
         o.tag_links.map(l => ({ source: T(l.source), target: T(l.target), weight: l.together, title: `${l.together} posts` })));
 }
 
-async function loadSamples(ev) {
-  const btn = ev.target, msg = document.getElementById("sample-msg");
+const datasetIndex = () => fetch("/static/datasets/index.json").then(r => r.json());
+
+async function showDatasets() {
+  const box = document.getElementById("datasets");
+  box.hidden = false;
+  const sets = await datasetIndex();
+  box.innerHTML = sets.map(d => `<div class="card dataset"><h2>${esc(d.name)} <span class="hint">${d.posts} posts</span></h2>
+    <p class="m">${esc(d.about)}</p><button class="primary" data-set="${esc(d.id)}">Load</button></div>`).join("");
+  box.querySelectorAll("[data-set]").forEach(b => { b.onclick = () => loadDataset(sets.find(d => d.id === b.dataset.set), b); });
+}
+
+// The same as ./app.sh seed: through the public API, and idempotent (an author's post with the same title is skipped).
+async function loadDataset(set, btn) {
+  const msg = document.getElementById("sample-msg");
   btn.disabled = true;
-  const posts = await (await fetch("/static/sample-posts.json")).json();
   try {
-    for (const [i, p] of posts.entries()) {
-      await api("/posts", { method: "POST", body: JSON.stringify(p) });
-      msg.textContent = `published ${i + 1} of ${posts.length}…`;
+    const posts = await (await fetch(`/static/datasets/${set.file}`)).json();
+    const have = new Map();
+    for (const author of new Set(posts.map(p => p.author))) {
+      have.set(author, new Set((await get("/posts", { author, limit: 50 })).posts.map(p => p.title)));
     }
-    msg.textContent = "published; waiting for the graph to index them…";
-    await sleep(2500);
+    const todo = posts.filter(p => !have.get(p.author).has(p.title));
+    let last = null;
+    for (const [i, p] of todo.entries()) {
+      last = (await api("/posts", { method: "POST", body: JSON.stringify(p) })).id;
+      msg.textContent = `${set.name}: published ${i + 1} of ${todo.length}…`;
+    }
+    if (last === null) { msg.textContent = `${set.name}: all ${posts.length} posts are already there.`; btn.disabled = false; return; }
+    msg.textContent = `${set.name}: ${todo.length} published; waiting for the graph to index them…`;
+    for (let n = 0; n < 60; n++) {
+      try { await get(`/posts/${last}/related`); break; } catch { await sleep(500); }
+    }
     route();
   } catch (e) { msg.textContent = e.message; btn.disabled = false; }
 }
@@ -340,8 +363,15 @@ async function pageGraph(_arg, q) {
 
 // ------------------------------------------------------------------ Chat
 const CHAT_KEY = "rag-web.chat";
-const SUGGESTIONS = ["How do Kafka consumers avoid processing an event twice?", "What is graph-boosted RAG?",
-  "How do services authenticate each other?", "How should I evaluate a retriever?"];
+// Suggested questions come from the sample datasets whose topics are in the graph (or all of them when it is empty).
+async function suggestions() {
+  try {
+    const [sets, o] = await Promise.all([datasetIndex(), get("/graph/overview", { limit: 50 })]);
+    const tags = new Set(o.top_tags.map(t => t.tag));
+    const loaded = sets.filter(d => tags.has(d.marker));
+    return (loaded.length ? loaded : sets).flatMap(d => d.questions).slice(0, 6);
+  } catch { return []; }
+}
 
 function loadChat() {
   try { return JSON.parse(sessionStorage.getItem(CHAT_KEY) || "[]"); } catch { return []; }
@@ -383,8 +413,9 @@ function parseEvents(buffer, onEvent) {          // returns the unparsed rest of
   return buffer;
 }
 
-function pageChat() {
+async function pageChat() {
   let turns = loadChat(), controller = null;
+  const suggested = await suggestions();
   view.innerHTML = `<div class="chat-layout">
     <div class="chat-main card">
       <div class="row chat-head"><h1 class="grow">Chat</h1><button id="new-chat">New chat</button></div>
@@ -430,7 +461,7 @@ function pageChat() {
 
   function draw() {
     thread.innerHTML = turns.length ? turns.map(bubble).join("")
-      : `<div class="suggest"><p class="hint">Try one of these:</p>${SUGGESTIONS.map(s => `<button class="sugg">${esc(s)}</button>`).join("")}</div>`;
+      : `<div class="suggest"><p class="hint">Try one of these:</p>${suggested.map(s => `<button class="sugg">${esc(s)}</button>`).join("")}</div>`;
     thread.querySelectorAll(".sugg").forEach(b => { b.onclick = () => { q.value = b.textContent; submit(); }; });
     thread.querySelectorAll(".srcbtn").forEach(b => { b.onclick = () => showSources(turns[+b.dataset.i]); });
     thread.querySelectorAll("[data-cite]").forEach(a => a.addEventListener("mouseenter", () => {

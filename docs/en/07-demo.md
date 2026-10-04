@@ -52,6 +52,14 @@ model the answer is written prose, the rest of the page is the same.
 
 ![rag-web chat](../assets/web-chat.png)
 
+**Banking dataset** (`./app.sh seed bank`): 100 posts by 10 authors, 35 tags. Analyze shows loans, risk, credit,
+payments and fraud as the big topics and how they connect; the graph explorer, started from `#credit-score` with one
+post expanded, links scores to cards, loans, mortgage underwriting and budgeting.
+
+![banking dataset: analyze](../assets/bank-analyze.png)
+
+![banking dataset: graph explorer](../assets/bank-graph.png)
+
 **Write**: publish, then watch every consumer of `content.post.created` catch up.
 
 ![rag-web write](../assets/web-write.png)

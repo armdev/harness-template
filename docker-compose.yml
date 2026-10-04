@@ -336,6 +336,20 @@ services:
       - ./libs:/repo/libs:ro
     network_mode: none
 
+  seed:                                     # load a dataset of posts through the API: ./app.sh seed bank (stack up)
+    build: { context: ., dockerfile: tools/Dockerfile }
+    image: air-harness/tools:${APP_TAG:-dev}
+    profiles: [tools]
+    working_dir: /repo
+    entrypoint: ["python", "tools/seed.py"]
+    command: ["general"]
+    environment:
+      GATEWAY_URL: http://gateway:8000
+      DATASETS_DIR: /repo/datasets
+    volumes:
+      - ./tools/seed.py:/repo/tools/seed.py:ro
+      - ./services/web/static/datasets:/repo/datasets:ro
+
   eval:                                     # search quality: make eval (stack must be up)
     build: { context: ., dockerfile: tools/Dockerfile }
     image: air-harness/tools:${APP_TAG:-dev}

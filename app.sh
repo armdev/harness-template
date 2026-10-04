@@ -8,6 +8,7 @@
 #   ./app.sh status          service status and URLs
 #   ./app.sh logs [service]  follow logs (all services, or one: ./app.sh logs search)
 #   ./app.sh test            the API specification (contract suite) against the running application
+#   ./app.sh seed [dataset]  load sample posts through the API: general (24) or bank (100); safe to repeat
 #   ./app.sh down            stop (data in DATA_DIR is kept)
 #   ./app.sh export <dir>    copy the application, without the harness, into <dir> (a standalone project)
 #   ./app.sh help            this text
@@ -106,6 +107,7 @@ behind one public gateway, and a web portal (web) for all of it: http://localhos
 notify and graph over Kafka (`content.post.created`).
 
     ./app.sh            build + start, smoke test, URLs   (needs docker with compose v2, and curl)
+    ./app.sh seed bank  load 100 banking posts (loans, credit, debit, payments, risk); or: general
     ./app.sh test       API specification (contract suite)
     ./app.sh down       stop; data stays in DATA_DIR (default /var/tmp/air-harness)
 
@@ -146,8 +148,9 @@ case "$cmd" in
     urls ;;
   logs)  preflight; "${DC[@]}" logs -f --tail=200 "$@" ;;
   test)  preflight; run "${DC[@]}" --profile tools run --rm --build contract ;;
+  seed)  preflight; run "${DC[@]}" --profile tools run --rm --build seed "${1:-general}" ;;
   down|stop) preflight; run "${DC[@]}" --profile observability --profile local-llm down --remove-orphans && ok "stopped; data kept" ;;
   export) export_app "$@" ;;
-  help|-h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
+  help|-h|--help) awk 'NR>1 && !/^#/{exit} NR>1' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "unknown command: $cmd (see ./app.sh help)" ;;
 esac

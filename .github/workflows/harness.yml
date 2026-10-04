@@ -71,6 +71,14 @@ jobs:
           cd "$RUNNER_TEMP/rag-app"
           ./app.sh up
           ./app.sh test
+          ./app.sh seed bank | tee "$RUNNER_TEMP/seed1.txt"
+          grep -q "100 posts created" "$RUNNER_TEMP/seed1.txt"
+          ./app.sh seed bank > "$RUNNER_TEMP/seed2.txt"
+          grep -q "0 posts created, 100 already there" "$RUNNER_TEMP/seed2.txt"   # idempotent
+          curl -fsS -N http://localhost:8081/api/chat -H 'content-type: application/json' \
+               -d '{"messages":[{"role":"user","content":"What is the difference between APR and the interest rate?"}]}' \
+               > "$RUNNER_TEMP/chat.txt"
+          grep -q "Interest rate versus APR" "$RUNNER_TEMP/chat.txt"             # retrieval finds the banking post
 
       - name: Report
         if: always()
