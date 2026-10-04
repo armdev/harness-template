@@ -133,6 +133,19 @@ back with the report while they are RED. It never blocks twice in a row, so a br
 **CI.** `.github/workflows/harness.yml` runs the harness self-tests and `./run.sh --full` on every PR and push
 to `main`, and the continuous stage nightly. The report is attached to the job summary and as an artifact.
 
+### The web console
+
+`./run.sh --console` or `make console` (stack up) serves http://127.0.0.1:8090: an API playground generated from
+the gateway's OpenAPI, buttons for every harness stage with live output, each sensor's latest result and selftest
+verdict, the report, and an **Agent** tab. There you compose a prompt (a guided one, or the task template with
+your task filled in) and either copy it or press **Run agent**: the console runs `AGENT_CMD "<prompt>"`
+(default `claude -p --permission-mode acceptEdits`) in the repository and streams its output. The timeline next
+to it shows every harness run from the ledger, including the ones the agent triggers through its Stop hook — the
+loop, made visible. See the [demo](07-demo.md#6-the-web-console).
+
+Claude Code applies this repository's pre-approved commands (`make harness-*`) only after the folder is trusted:
+run `claude` in it once and accept the prompt. Settings: `CONSOLE_PORT`, `AGENT_CMD` (`.env.example`).
+
 ## 2.6 The review agent (optional LLM)
 
 The review agent needs an OpenAI-compatible endpoint (Ollama, vLLM, a hosted API):

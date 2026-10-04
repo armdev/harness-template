@@ -26,6 +26,7 @@ overview() {
   h "Start in three commands"
   kv "./run.sh" "build + start everything, smoke-test it, print all URLs and next steps"
   kv "./run.sh --check" "… and prove the harness works (selftest, fast loop, contract suite)"
+  kv "./run.sh --console" "… and open the web console: http://127.0.0.1:8090 (API, harness, agent)"
   kv "claude \"\$(./help.sh prompt 01)\"" "hand a coding agent its first prompt (or paste it into any agent)"
   h "The loop (what you and the agent do on every change)"
   p "1. edit   →  2. make harness-fast  →  3. read .harness/report.md  →  4. fix blocking failures first"
@@ -46,7 +47,7 @@ overview() {
 
 topic_run() {
   h "./run.sh — run the whole product"
-  sed -n '3,11p' run.sh | sed 's/^# \{0,1\}/  /'
+  sed -n '3,12p' run.sh | sed 's/^# \{0,1\}/  /'
   h "What it does"
   p "preflight (docker, compose, make, free ports) → build + start the stack and wait until healthy →"
   p "smoke test through the public API (create, read, search) → optional harness checks → URLs → next steps."
@@ -83,6 +84,9 @@ topic_harness() {
 }
 
 topic_agent() {
+  h "In the browser"
+  p "make console (stack up) → http://127.0.0.1:8090 → Agent tab: compose a prompt, Run agent (AGENT_CMD,"
+  p "default claude -p), watch its output and the harness runs its Stop hook triggers."
   h "Any coding agent"
   p "Entry point is AGENTS.md. Skills live in harness/skills/<name>/SKILL.md:"
   for f in harness/skills/*/SKILL.md; do

@@ -4,7 +4,7 @@
 harness: 1
 template:
   name: py-services-pg-kafka          # the topology this harness regulates (variety reduction)
-  version: 0.4.2                      # projects pin this; upgrades arrive as a new runner image + manifest diff
+  version: 0.5.0                      # projects pin this; upgrades arrive as a new runner image + manifest diff
 
 categories: [maintainability, architecture, behaviour]
 

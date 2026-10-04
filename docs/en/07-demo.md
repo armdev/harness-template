@@ -90,4 +90,29 @@ exits 2 with the report, so the agent goes back to work:
 
 ![help.sh prompt 02](../assets/terminal-prompt-02.png)
 
+## 6. The web console
+
+`./run.sh --console` → http://127.0.0.1:8090. Captured against the running stack with Chromium (Playwright).
+
+**Overview** — stack health, the verdict, the loop:
+
+![console overview](../assets/console-overview.png)
+
+**API** — forms generated from the gateway's OpenAPI; here a post is created and found through search:
+
+![console API playground](../assets/console-api.png)
+
+**Harness** — every stage one click away; each sensor with its last result, selftest verdict and history:
+
+![console harness](../assets/console-harness.png)
+
+**Agent** — a real run: the prompt goes to `claude -p`, its answer streams in, and the timeline shows the
+pre-commit run its Stop hook triggered when it finished:
+
+![console agent run](../assets/console-agent-run.png)
+
+**Guides** — AGENTS.md, skills, rubric and prompts, rendered:
+
+![console guides](../assets/console-guides.png)
+
 Back to the [documentation index](../README.md) · previous: [Low-level design](06-low-level-design.md)

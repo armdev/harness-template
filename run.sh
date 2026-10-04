@@ -5,6 +5,7 @@
 #   ./run.sh --check       ... then run the harness: selftest, fast loop, integration (unit + contract)
 #   ./run.sh --full        ... --check plus the pipeline stage (eval, alert rules)
 #   ./run.sh --llm         also start the local LLM (Ollama) and pull LLM_MODEL for the review agent
+#   ./run.sh --console     ... and start the web console (API playground, harness runs, agent tasks)
 #   ./run.sh --urls        print URLs and service status of a running stack, start nothing
 #   ./run.sh --down        stop the stack (data in DATA_DIR is kept)
 #   ./run.sh --help        this text; ./help.sh for the full guide
@@ -26,12 +27,13 @@ die()   { fail "$1"; [ -n "${2:-}" ] && printf '    %s\n' "$2"; exit 1; }
 run()   { printf '  %s$ %s%s\n' "$DIM" "$*" "$N"; "$@"; }
 
 # ------------------------------------------------------------------ options
-CHECK=0 FULL=0 LLM=0 OBS=1 MODE=up
+CHECK=0 FULL=0 LLM=0 OBS=1 CONSOLE=0 MODE=up
 for arg in "$@"; do
   case "$arg" in
     --check) CHECK=1 ;;
     --full) CHECK=1; FULL=1 ;;
     --llm) LLM=1 ;;
+    --console) CONSOLE=1 ;;
     --no-observability) OBS=0 ;;
     --urls|--status) MODE=urls ;;
     --down|--stop) MODE=down ;;
@@ -52,6 +54,8 @@ HOST=$(env_value PUBLIC_HOST localhost)
 GATEWAY_PORT=$(env_value GATEWAY_PORT 8080)
 PROMETHEUS_PORT=$(env_value PROMETHEUS_PORT 9090)
 OLLAMA_PORT=$(env_value OLLAMA_PORT 11434)
+CONSOLE_PORT=$(env_value CONSOLE_PORT 8090)
+CONSOLE_URL="http://127.0.0.1:$CONSOLE_PORT"
 LLM_MODEL=$(env_value LLM_MODEL qwen3:8b)
 DATA_DIR=$(env_value DATA_DIR /var/tmp/air-harness)
 API="http://$HOST:$GATEWAY_PORT"
@@ -87,6 +91,12 @@ print_urls() {
     printf '  %-26s %s\n' "Local LLM" "${DIM}not running (./run.sh --llm)${N}"
   fi
 
+  if curl -fsS -o /dev/null "$CONSOLE_URL/api/files" 2>/dev/null; then
+    printf '  %-26s %s%s%s\n' "Console (web UI)" "$C" "$CONSOLE_URL" "$N  API playground · harness runs · agent tasks"
+  else
+    printf '  %-26s %s\n' "Console (web UI)" "${DIM}not running (./run.sh --console or make console)${N}"
+  fi
+
   printf '\n%sInternal only%s %s(no host port by design — reach them through the stack)%s\n' "$B" "$N" "$DIM" "$N"
   printf '  %-26s %s\n' "content, search" "http://content:8000, http://search:8000 — signed calls only (TRUSTED_CALLERS)"
   printf '  %-26s %s\n' "PostgreSQL" "docker compose exec postgres psql -U postgres -d air_harness"
@@ -101,12 +111,25 @@ print_urls() {
 
 print_next() {
   printf '\n%sNext steps%s\n' "$B" "$N"
-  printf '  1. Try the API in the browser:        %s%s/docs%s\n' "$C" "$API" "$N"
+  printf '  1. Open the console:                  %s%s%s  (or the API docs: %s/docs)\n' "$C" "$CONSOLE_URL" "$N" "$API"
   printf '  2. Learn the loop:                    %s./help.sh%s  (or ./help.sh harness)\n' "$C" "$N"
   printf '  3. Check the repo like an agent will: %smake harness-fast%s → .harness/report.md\n' "$C" "$N"
   printf '  4. Give a coding agent its first task: %s./help.sh prompts%s, then e.g.\n' "$C" "$N"
   printf '       %sclaude "$(./help.sh prompt 01)"%s        (or paste the text into any agent)\n' "$C" "$N"
   printf '  5. Stop everything:                   %s./run.sh --down%s\n' "$C" "$N"
+}
+
+start_console() {
+  python3 -c 'import yaml' 2>/dev/null || { warn "the console needs python3 with PyYAML: pip install pyyaml"; return 1; }
+  stop_console
+  mkdir -p .harness
+  nohup python3 harness/console/server.py > .harness/console.log 2>&1 &
+  echo $! > .harness/console.pid
+  for _ in $(seq 1 20); do curl -fsS -o /dev/null "$CONSOLE_URL/api/files" 2>/dev/null && { ok "console on $CONSOLE_URL (log: .harness/console.log)"; return 0; }; sleep 0.25; done
+  warn "the console did not start — see .harness/console.log"; return 1
+}
+stop_console() {
+  [ -f .harness/console.pid ] && kill "$(cat .harness/console.pid)" 2>/dev/null; rm -f .harness/console.pid; return 0
 }
 
 # ------------------------------------------------------------------ preflight
@@ -175,6 +198,7 @@ harness_checks() {
 case "$MODE" in
   down)
     title "Stopping air-harness"
+    stop_console
     run make -s down
     ok "stopped; data kept in $DATA_DIR (make purge deletes it)"
     exit 0 ;;
@@ -207,6 +231,7 @@ if [ $LLM = 1 ]; then
 fi
 
 if [ $CHECK = 1 ]; then harness_checks || status=1; fi
+if [ $CONSOLE = 1 ]; then title "Web console"; start_console || status=1; fi
 
 print_urls
 print_next
