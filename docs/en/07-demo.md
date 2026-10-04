@@ -60,6 +60,12 @@ post expanded, links scores to cards, loans, mortgage underwriting and budgeting
 
 ![banking dataset: graph explorer](../assets/bank-graph.png)
 
+**Ardshinbank dataset** (`./app.sh seed ardshinbank`): 46 posts summarising a real bank's public website, every
+post with its source URL. The `#ardshinbank` tag page shows how its cards, loans, deposits, business and digital
+banking topics connect.
+
+![Ardshinbank dataset: tag page](../assets/ardshinbank-tag.png)
+
 **Write**: publish, then watch every consumer of `content.post.created` catch up.
 
 ![rag-web write](../assets/web-write.png)

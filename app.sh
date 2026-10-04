@@ -8,7 +8,7 @@
 #   ./app.sh status          service status and URLs
 #   ./app.sh logs [service]  follow logs (all services, or one: ./app.sh logs search)
 #   ./app.sh test            the API specification (contract suite) against the running application
-#   ./app.sh seed [dataset]  load sample posts through the API: general (24), bank (100) or a .json file; repeatable
+#   ./app.sh seed [dataset]  load sample posts through the API: general, bank, ardshinbank or a .json file; repeatable
 #   ./app.sh down            stop (data in DATA_DIR is kept)
 #   ./app.sh export <dir>    copy the application, without the harness, into <dir> (a standalone project)
 #   ./app.sh help            this text
@@ -148,7 +148,8 @@ case "$cmd" in
     urls ;;
   logs)  preflight; "${DC[@]}" logs -f --tail=200 "$@" ;;
   test)  preflight; run "${DC[@]}" --profile tools run --rm --build contract ;;
-  seed)  preflight
+  seed)  case "${1:-}" in *.json) [ -f "$1" ] || die "no such file: $1 (give the path of a dataset .json, or a name: general, bank, ardshinbank)" ;; esac
+         preflight
          if [ -f "${1:-}" ]; then          # a dataset file on this machine: hand it to the seed container
            file="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
            run "${DC[@]}" --profile tools run --rm --build -v "$file:/repo/custom.json:ro" seed /repo/custom.json

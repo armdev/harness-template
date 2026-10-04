@@ -79,6 +79,8 @@ jobs:
                -d '{"messages":[{"role":"user","content":"What is the difference between APR and the interest rate?"}]}' \
                > "$RUNNER_TEMP/chat.txt"
           grep -q "Interest rate versus APR" "$RUNNER_TEMP/chat.txt"             # retrieval finds the banking post
+          ./app.sh seed ardshinbank > "$RUNNER_TEMP/seed3.txt"
+          grep -q "46 posts created" "$RUNNER_TEMP/seed3.txt"
 
       - name: Report
         if: always()

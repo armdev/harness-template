@@ -416,6 +416,7 @@ of the gateway pass through unchanged. Host port `WEB_PORT` (8081).
 | Dataset | Posts | Authors | Tags | Content |
 |---|---|---|---|---|
 | `general` | 24 | 6 | 15 | RAG, Kafka, knowledge graphs, Postgres, security, observability |
+| `ardshinbank` | 46 | 7 | 28 | Ardshinbank (Armenia), summarised from its public website with a source URL per post: history and network, debit, credit and premium cards, ArCa, Google/Apple Pay, consumer and mortgage loans, refinancing, deposits and savings, mobile app and transfers (UBPay), SME and corporate banking, POS acquiring, STATUS premium banking. No rates or fees: they change, the posts point to the bank's terms |
 | `bank` | 100 | 10 | 35 | loans, credit risk (PD, LGD, EAD, provisioning), mortgages, cards and credit scores, debit and accounts, payments, fraud, compliance (KYC, AML, sanctions), treasury (rates, liquidity, capital), financial education |
 
 `./app.sh seed <dataset|path.json>` / `make seed d=<dataset>` runs the `seed` container (tools profile): it validates
