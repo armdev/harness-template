@@ -27,18 +27,22 @@ docs/                         this documentation
 | Runner image | `harness/Dockerfile` | pinned tools: ruff, semgrep, vulture, pip-audit, pytest, PyYAML, git | — → `air-harness-runner:<ver>` |
 | Sensor containers | `compose.harness.yml` | `harness` (static plane) and `harness-live` (live plane) from one image | repo (ro) → `/out` |
 | Make targets | `harness.mk` | stage entry points, one-sensor re-run, selftest, coverage, stats, harness tests | — |
-| Topology sensor | `harness/sensors/topology_check.py` | checks `docker-compose.yml` against itself: T1–T9 | compose file, alerts file, env example → findings |
+| Topology sensor | `harness/sensors/topology_check.py` | checks `docker-compose.yml` against itself: T1–T10 | compose file, alerts file, env example → findings |
 | Migrations sensor | `harness/sensors/migrations_check.py` | Flyway history rules M1–M5 | `db/migrations`, git → findings |
-| Review sensor | `harness/sensors/review.py` | LLM applies the rubric to the diff | diff, rubric, prompt → findings (advisory) |
+| Review sensor | `harness/sensors/review.py` | LLM applies the rubric to the diff (`REVIEW_SCOPE`; `REVIEW_DIFF_FILE` for seeded diffs) | diff, rubric, prompt → findings (advisory) |
+| Dependency audit | `harness/sensors/deps_audit.py` | pip-audit on every requirements file; exit 126 (BLIND) when it cannot audit | requirements files, network → findings |
+| Mutation helper | `harness/sensors/mutate.py` | applies one mutant to a copy of `libs/common` or `services/gateway` and runs the suite that must catch it | `mutant.yml` → exit code of the suite |
 | Semgrep rules | `harness/rules/semgrep/python.yml` | organisation rules whose messages say what to write instead | code → findings |
 | Vulture whitelist | `harness/rules/vulture_whitelist.py` | framework-used names that look dead | — |
-| Seeded defects | `harness/sensors/fixtures/` | prove each sensor fires (`# expect: <rule>`) and stays quiet (`# expect: clean`) | — |
+| Seeded defects | `harness/sensors/fixtures/` | prove each sensor fires (`# expect: <rule>`) and stays quiet (`# expect: clean`): files, diffs, eval baselines, mutants — every sensor has them | — → `.harness/selftest.json` (read by `stats`) |
 | Rubric | `harness/review/RUBRIC.md` | R1–R9: one rubric for the agent (forward) and the reviewer (back) | — |
 | Skills | `harness/skills/*/SKILL.md` | procedures: new-service, new-endpoint, db-migration, new-topic, harness-report, harness-steer | — |
 | Prompts | `harness/prompts/` | reviewer and judge system prompts; agent templates; next-step prompts 01–08 | — |
 | Stop hook | `harness/hooks/agent-stop.sh` | blocks an agent from finishing while static sensors are RED | hook JSON on stdin → exit 0/2 |
 | Harness tests | `harness/tests/` | tests of the runner and sensors | — |
 | Changelog | `harness/CHANGELOG.md` | versions and expected first-run impact of new rules | — |
+| Installer | `harness/install.py` | installs the harness into another project with a manifest that fits it; `--upgrade` replaces only upstream-owned machinery | project dir → harness files, `harness.yaml` |
+| Install templates | `harness/templates/` | `AGENTS.md`, `CLAUDE.md`, `ruff.toml` written into a project that has none | — |
 
 ### Sensors
 
