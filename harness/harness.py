@@ -192,6 +192,7 @@ def cmd_selftest(a: argparse.Namespace) -> int:
     Each plane proves its own sensors: in the static container (no network) a live sensor would only look blind."""
     rc = 0
     planes = set(PLANES) if a.plane == "all" else {a.plane}
+    verdicts: dict[str, str] = {}
     for s in manifest()["sensors"]:
         if a.only and s["id"] != a.only:
             continue
@@ -207,12 +208,14 @@ def cmd_selftest(a: argparse.Namespace) -> int:
         if not fixtures:
             print(f"[ BLIND ] {s['id']:22} fixture directory {st['fixtures']} is empty")
             rc = 1
+            verdicts[s["id"]] = "blind"
         for fx in fixtures:
             expect = fixture_expectation(fx)
             cmd = st["run"].replace("{fixture}", str(fx.relative_to(ROOT)))   # not .format(): commands use ${VAR:-x}
             _, code, out, _ = execute(cmd)
             if code == SKIPPED_RC:                       # not configured (e.g. no LLM): nothing to prove here
                 print(f"[ skip  ] {s['id']:22} {fx.name} — not configured: {out.strip().splitlines()[-1][:90]}")
+                verdicts.setdefault(s["id"], "skipped")
                 continue
             if expect == "clean":
                 ok, label = code == 0, "quiet" if code == 0 else "NOISY"
@@ -220,10 +223,28 @@ def cmd_selftest(a: argparse.Namespace) -> int:
                 ok = code not in (0, 126, 127) and (expect is None or expect in out)
                 label = "fires" if ok else "BLIND"
             rc |= 0 if ok else 1
+            if verdicts.get(s["id"]) in (None, "skipped", "proven"):
+                verdicts[s["id"]] = "proven" if ok else label.lower()
             print(f"[{label:7}] {s['id']:22} {fx.name} (expect {expect})")
             if not ok:
                 print("          " + "\n          ".join(out.splitlines()[-8:]))
+    record_selftest(verdicts)
     return rc
+
+
+def record_selftest(verdicts: dict[str, str]) -> None:
+    """Merge this run's verdicts into OUT/selftest.json (each plane proves its own sensors); stats reads it."""
+    if not verdicts:
+        return
+    path = OUT / "selftest.json"
+    try:
+        known = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError):
+        known = {}
+    rev, ts = git_rev(), int(time.time())
+    known.update({sid: {"verdict": v, "rev": rev, "ts": ts} for sid, v in verdicts.items()})
+    OUT.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(known, indent=2, sort_keys=True) + "\n")
 
 
 # ------------------------------------------------------------------ coverage
@@ -296,15 +317,33 @@ def cmd_stats(a: argparse.Namespace) -> int:
         print("no ledger yet — run some stages first")
         return 0
     runs, fails, blind, skips, secs = Counter(), Counter(), Counter(), Counter(), defaultdict(float)
+    recent: dict[str, list[bool]] = defaultdict(list)      # blind or not, per run, oldest first
     for line in p.read_text().splitlines():
         r = json.loads(line)
         if r["status"] == "skipped":                     # says nothing about the code or the sensor
             skips[r["id"]] += 1
+            recent[r["id"]].append(False)                # ... but shows an old broken setup is gone
             continue
         runs[r["id"]] += 1
         secs[r["id"]] += r["seconds"]
         fails[r["id"]] += r["status"] == "fail"
         blind[r["id"]] += r["status"] in ("unavailable", "timeout")
+        recent[r["id"]].append(r["status"] in ("unavailable", "timeout"))
+    st_path = OUT / "selftest.json"
+    try:
+        proof = json.loads(st_path.read_text()) if st_path.exists() else {}
+    except (OSError, ValueError):
+        proof = {}
+
+    def never_fired(sid: str) -> str:
+        verdict = proof.get(sid, {})
+        when = time.strftime("%Y-%m-%d", time.gmtime(verdict["ts"])) if "ts" in verdict else ""
+        if verdict.get("verdict") == "proven":
+            return f"never fired, but selftest proved it can ({when}): clean code here; consider a later stage"
+        if verdict.get("verdict") in ("blind", "noisy"):
+            return f"never fired and {verdict['verdict'].upper()} in selftest ({when}): fix the sensor"
+        return "never fired: run selftest, or demote/remove"
+
     print(f"{'sensor':22}{'runs':>6}{'fired':>7}{'rate':>7}{'blind':>7}{'avg s':>8}{'skipped':>8}  steer")
     for sid in sorted(set(runs) | set(skips), key=lambda x: -fails[x] / runs[x] if runs[x] else 1):
         if not runs[sid]:
@@ -312,9 +351,10 @@ def cmd_stats(a: argparse.Namespace) -> int:
                   f"never ran: configure it (see its skip message) or drop it from this stage")
             continue
         rate = fails[sid] / runs[sid]
-        hint = ("blind too often: fix the sensor's environment" if blind[sid] / runs[sid] > 0.2 else
+        last = recent[sid][-a.window:]                   # an environment fixed since then no longer counts
+        hint = ("blind too often lately: fix the sensor's environment" if sum(last) / len(last) > 0.2 else
                 "fires often: strengthen the paired guide" if rate > 0.3 else
-                "never fired: run selftest, or demote/remove" if runs[sid] >= a.min_runs and fails[sid] == 0 else "")
+                never_fired(sid) if runs[sid] >= a.min_runs and fails[sid] == 0 else "")
         print(f"{sid:22}{runs[sid]:>6}{fails[sid]:>7}{rate:>7.0%}{blind[sid]:>7}{secs[sid] / runs[sid]:>8.1f}"
               f"{skips[sid]:>8}  {hint}")
     return 0
@@ -341,6 +381,7 @@ def main() -> int:
     sub.add_parser("coverage")
     s = sub.add_parser("stats")
     s.add_argument("--min-runs", type=int, default=20)
+    s.add_argument("--window", type=int, default=10, help="recent runs that decide 'blind too often'")
     sub.add_parser("list")
     a = ap.parse_args()
     verbs = {"run": cmd_run, "selftest": cmd_selftest, "coverage": cmd_coverage, "stats": cmd_stats, "list": cmd_list}

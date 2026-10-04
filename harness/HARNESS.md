@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.4.1
+# Harness template `py-services-pg-kafka` v0.4.2
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.
@@ -98,8 +98,9 @@ Templates drift the moment they are copied. The split that keeps upgrades possib
 ## Steering loop
 
 1. `harness-stats`: a sensor that fires often → strengthen its paired guide (the agent keeps making that mistake).
-2. A sensor that never fires in 20+ runs → `harness-selftest`. If it still fires on seeded defects, the code is
-   genuinely clean there — consider moving it to a later stage; if not, it is blind.
+2. A sensor that never fires in 20+ runs → `harness-stats` reads the last selftest verdict
+   (`.harness/selftest.json`): proven on seeded defects → the code is genuinely clean there, consider moving it to a
+   later stage; blind → fix it; no verdict yet → run `harness-selftest`.
 3. `harness-coverage`: a guide with no sensor is a rule nobody checks; a sensor with no guide is a lesson
    nobody teaches.
 4. Inferential sensors stay advisory until their precision has been measured on real diffs.

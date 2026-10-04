@@ -19,8 +19,8 @@ make harness-selftest   # every seeded defect must fire, every clean fixture mus
 | Signal | Meaning | Action |
 |---|---|---|
 | sensor fires > 30 % | agents keep making this mistake | strengthen the paired guide (skill step, AGENTS.md line, rule message) |
-| never fired in 20+ runs | clean code, or a blind sensor | `harness-selftest`; still fires → move it to a later stage; does not → fix it |
-| blind > 20 % | broken environment (tool missing, LLM down) | fix the image / plane, not the code |
+| never fired in 20+ runs | clean code, or a blind sensor | stats names the last selftest verdict: proven → consider a later stage; blind → fix it; none → run `harness-selftest` |
+| blind in > 20 % of recent runs | broken environment (tool missing, LLM down) | fix the image / plane, not the code |
 | FF-ONLY guide | a rule nobody checks | add a computational sensor if the rule is mechanical, or a rubric line |
 | FB-ONLY sensor | a lesson nobody teaches | add the rule to a skill or AGENTS.md |
 | UNPROVEN sensor | cannot tell quiet from blind | add seeded defects |
