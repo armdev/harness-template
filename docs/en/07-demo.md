@@ -160,4 +160,4 @@ pre-commit run its Stop hook triggered when it finished:
 
 ![console guides](../assets/console-guides.png)
 
-Back to the [documentation index](../README.md) · previous: [Low-level design](06-low-level-design.md)
+Back to the [documentation index](../README.md) · previous: [Low-level design](06-low-level-design.md) · next: [Planner](08-planner.md)

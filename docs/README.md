@@ -13,6 +13,7 @@ Mermaid, отображается прямо на GitHub.
 | 5 | [Components](en/05-components.md) | [Компоненты](ru/05-components.md) | every component, its responsibility, inputs and outputs · каждый компонент, ответственность, входы и выходы |
 | 6 | [Low-level design](en/06-low-level-design.md) | [Низкоуровневый дизайн](ru/06-low-level-design.md) | runner algorithms, file formats, rules, protocols, schema, sequences · алгоритмы, форматы, правила, протоколы, схема, последовательности |
 | 7 | [Demo](en/07-demo.md) | [Демо](ru/07-demo.md) | walkthrough GIF and screenshots of a real run · GIF-обзор и скриншоты реального запуска |
+| 8 | [Planner](en/08-planner.md) | [Планировщик](ru/08-planner.md) | employees, Jira tasks, meetings, priority, week plan, AI re-plan · сотрудники, задачи, встречи, приоритет, план недели, перепланирование с ИИ |
 
 ![air-harness demo](assets/demo-en.gif)
 

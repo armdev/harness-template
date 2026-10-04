@@ -86,6 +86,7 @@ docs/                         эта документация
 | content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`, `GET /posts?author=`; пишет в `content.posts`; публикует `content.post.created` |
 | search | `services/search/app.py`, `indexer.py` | `GET /search` (фильтры по автору и тегу); `EventConsumer` с обработчиком, делающим upsert в `search.documents`; ранжирование полнотекстового поиска Postgres |
 | notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; `EventConsumer` с обработчиком, записывающим одну строку `notify.outbox` на пост (идемпотентно) |
+| planner | `services/planner/app.py`, `planning.py` | сотрудники, задачи, встречи (Postgres, схема `planner`); приоритет задач с причинами, расписание недели вокруг встреч, перепланирование моделью с проверкой правилами, граф работы — см. [Планировщик](08-planner.md) |
 | chat | `services/chat/app.py`, `rag.py` | `POST /chat`: фиксированный RAG-конвейер (search → graph → content → модель), ответ со ссылками `[#id]` потоком server-sent events; без доступной модели перечисляет источники |
 | web (rag-web) | `services/web/app.py`, `static/` | портал: браузерный клиент (анализ, поиск, обозреватель графа, чат, публикация, страницы поста, тега, автора) и подписанный потоковый прокси `/api/*` в gateway |
 | graph | `services/graph/app.py`, `graph.py` | `GET /related/{post_id}`, `GET /tags/{tag}`, `GET /tags/{tag}/posts`, `GET /overview`; `EventConsumer` с обработчиком, делающим MERGE `(:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag)` в Neo4j (идемпотентно) |

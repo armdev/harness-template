@@ -397,6 +397,14 @@ flowchart LR
 не пускает «сырой» HTTP в `services/`. Gateway и web передают поток через `common.relay` (части пересылаются по
 мере прихода, таймаут чтения 180 с). Контракт: `contract/test_chat.py` выполняется и с моделью, и без неё.
 
+### planner
+
+Сотрудники, задачи в стиле Jira и встречи в схеме `planner` (роль `planner_svc`, `V9__planner.sql`). Правила —
+чистые функции в `planning.py`: `rank` (оценка, корзина, причины, `blocked_by`, `blocks`), `schedule` (рабочие дни
+09:00–18:00 без обеда и встреч, не больше `capacity_hours` в день, сначала свои зависимости, куски от 30 минут),
+`prompt` и `read_answer` (перепланирование моделью со строгой проверкой; непригодный ответ — возврат к правилам).
+Полное описание, таблица оценок и API: [Планировщик](08-planner.md).
+
 ### web (rag-web)
 
 Портал: приложение FastAPI (`services/web/app.py`), которое отдаёт браузерный клиент без зависимостей
@@ -477,7 +485,7 @@ erDiagram
 `search`, `SELECT, INSERT, UPDATE` на `search.documents`. `notify_svc` → `USAGE` на `notify`, `SELECT, INSERT`
 на `notify.outbox`. Владелец объектов — пользователь миграций (`postgres`).
 One-shot `migrate` запускает Flyway с `FLYWAY_CONNECT_RETRIES=30`; плейсхолдеры берутся из
-`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD` / `NOTIFY_DB_PASSWORD` — тех же переменных, что и в `DB_DSN` каждого сервиса.
+`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD` / `NOTIFY_DB_PASSWORD` / `PLANNER_DB_PASSWORD` — тех же переменных, что и в `DB_DSN` каждого сервиса.
 
 ## 6.12 Eval (`eval/run_eval.py`)
 
@@ -535,9 +543,9 @@ pull request и `HEAD~1` для push.
 | `DATA_DIR` | `/var/tmp/air-harness` | постоянные данные (postgres, kafka, ollama) |
 | `GATEWAY_PORT` / `WEB_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 8081 / 9090 / 11434 | порты на хосте |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | база данных |
-| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | роли сервисов |
+| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD`, `PLANNER_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev`, `planner-dev` | роли сервисов |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | хранилище графа Neo4j |
-| `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | модель чата (любой OpenAI-совместимый эндпоинт; пустой URL — ответы только списком источников) |
+| `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | модель чата, её же использует перепланирование с ИИ (любой OpenAI-совместимый эндпоинт; пустой URL — ответы только списком источников и планы только по правилам) |
 | `LOG_LEVEL` | `INFO` | сервисы |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | куча брокера |
 | `*_TAG` | закреплены | версии образов |

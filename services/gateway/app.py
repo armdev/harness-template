@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import date
+from typing import Annotated, Literal
 
 import httpx
 from fastapi import Body, HTTPException, Path, Query, Response
@@ -25,6 +27,7 @@ async def lifespan(_app):
     clients["notify"] = SignedClient(os.environ["NOTIFY_URL"])
     clients["graph"] = SignedClient(os.environ["GRAPH_URL"])
     clients["chat"] = SignedClient(os.environ["CHAT_URL"])
+    clients["planner"] = SignedClient(os.environ["PLANNER_URL"])
     yield
     for c in clients.values():
         c.close()
@@ -36,6 +39,17 @@ app = create_app("gateway", lifespan=lifespan, description=(
     "The contract suite in `contract/` is the specification of this API."))
 
 CHAT_EXAMPLE = {"messages": [{"role": "user", "content": "How do consumers avoid processing an event twice?"}]}
+EMPLOYEE_EXAMPLE = {"handle": "anna.petrosyan", "name": "Anna Petrosyan", "role": "Backend engineer",
+                    "team": "Payments", "capacity_hours": 6}
+TASK_EXAMPLE = {"key": "PAY-101", "title": "Card authorisations time out at peak", "severity": "blocker",
+                "status": "in_progress", "assignee": "anna.petrosyan", "estimate_hours": 6, "due": "2030-01-08",
+                "depends_on": [], "description": "p99 of the authorisation call is above 2 s between 12:00 and 14:00."}
+MEETING_EXAMPLE = {"id": "pay-standup-2030-01-07", "title": "Payments stand-up", "starts_at": "2030-01-07T09:30:00",
+                   "ends_at": "2030-01-07T09:45:00", "organizer": "anna.petrosyan", "attendees": ["anna.petrosyan"]}
+AI_EXAMPLE = {"instruction": "I am off on Friday; security findings first.", "days": 5}
+HANDLE = r"^[A-Za-z0-9._-]{1,64}$"
+KEY = r"^[A-Z][A-Z0-9]{1,9}-[0-9]{1,6}$"
+Severity = Literal["blocker", "critical", "major", "minor", "trivial"]
 POST_EXAMPLE = {"title": "Hello air-harness", "body": "My first post, searchable in a second.", "author": "me",
                 "tags": ["intro"]}
 
@@ -118,3 +132,83 @@ async def graph_overview(limit: int = Query(10, ge=1, le=50)) -> Response:
                       "(first), `token` (the answer, piece by piece), `done` (`citations`, `model`), `error`.")
 async def chat(body: dict = Body(examples=[CHAT_EXAMPLE])) -> Response:  # noqa: B008 — FastAPI idiom
     return await relay(clients["chat"], "POST", "/chat", service="chat", json=body)
+
+
+# ------------------------------------------------------------------ planner: employees, tasks, meetings, plans
+def given(**params) -> dict:
+    return {k: v for k, v in params.items() if v is not None}
+
+
+@app.post("/api/planner/employees", summary="Add or update an employee (by handle)")
+async def upsert_employee(body: Annotated[dict, Body(examples=[EMPLOYEE_EXAMPLE])]) -> Response:
+    return await forward("planner", "POST", "/employees", json=body)
+
+
+@app.get("/api/planner/employees", summary="Employees with their load: open work, overdue, urgent, meeting hours")
+async def list_employees(team: str | None = Query(None, min_length=1, max_length=64),
+                         start: date | None = None) -> Response:
+    return await forward("planner", "GET", "/employees", params=given(team=team, start=start))
+
+
+@app.post("/api/planner/tasks", summary="Add or update a Jira-style task (by key)")
+async def upsert_task(body: Annotated[dict, Body(examples=[TASK_EXAMPLE])]) -> Response:
+    return await forward("planner", "POST", "/tasks", json=body)
+
+
+@app.get("/api/planner/tasks", summary="Tasks with their priority and its reasons, filtered and sorted")
+async def list_tasks(assignee: str | None = Query(None, pattern=HANDLE),
+                     severity: Annotated[list[Severity] | None, Query()] = None,
+                     status: Literal["open", "todo", "in_progress", "review", "done"] | None = None,
+                     project: str | None = Query(None, pattern=r"^[A-Z][A-Z0-9]{1,9}$"),
+                     q: str | None = Query(None, min_length=1, max_length=100),
+                     sort: Literal["priority", "due", "severity", "estimate", "key"] = "priority",
+                     start: date | None = None, limit: int = Query(200, ge=1, le=500)) -> Response:
+    return await forward("planner", "GET", "/tasks", params=given(
+        assignee=assignee, severity=severity, status=status, project=project, q=q, sort=sort, start=start,
+        limit=limit))
+
+
+@app.get("/api/planner/tasks/{key}", summary="A task with its priority: score, bucket, reasons, what it blocks")
+async def get_task(key: str = Path(pattern=KEY), start: date | None = None) -> Response:
+    return await forward("planner", "GET", f"/tasks/{key}", params=given(start=start))
+
+
+@app.post("/api/planner/tasks/{key}/status", summary="Move a task: todo, in_progress, review, done")
+async def set_task_status(body: Annotated[dict, Body(examples=[{"status": "done"}])],
+                          key: str = Path(pattern=KEY)) -> Response:
+    return await forward("planner", "POST", f"/tasks/{key}/status", json=body)
+
+
+@app.post("/api/planner/meetings", summary="Add or update a meeting (by id); times on the office wall clock")
+async def upsert_meeting(body: Annotated[dict, Body(examples=[MEETING_EXAMPLE])]) -> Response:
+    return await forward("planner", "POST", "/meetings", json=body)
+
+
+@app.get("/api/planner/meetings", summary="Meetings on the days from `start`, one person's or everyone's")
+async def list_meetings(attendee: str | None = Query(None, pattern=HANDLE), start: date | None = None,
+                        days: int = Query(7, ge=1, le=31)) -> Response:
+    return await forward("planner", "GET", "/meetings", params=given(attendee=attendee, start=start, days=days))
+
+
+@app.get("/api/planner/plan/{handle}", summary="A person's plan by the rules: tasks in priority order, scheduled "
+                                                "around meetings over the next working days")
+async def get_plan(handle: str = Path(pattern=HANDLE), start: date | None = None,
+                   days: int = Query(5, ge=1, le=10)) -> Response:
+    return await forward("planner", "GET", f"/plan/{handle}", params=given(start=start, days=days))
+
+
+@app.post("/api/planner/plan/{handle}/ai", summary="Re-plan a person's week with the language model",
+          description="The model re-orders the open tasks following the instruction and may mark days off; the "
+                      "rules check its answer and schedule it (dependencies, meetings, capacity). `source` says "
+                      "whether the plan is the model's or, when no usable model answered, the rules' (`fallback`).")
+async def ai_plan(body: Annotated[dict, Body(examples=[AI_EXAMPLE])],
+                  handle: str = Path(pattern=HANDLE)) -> Response:
+    return await relay(clients["planner"], "POST", f"/plan/{handle}/ai", service="planner", json=body)
+
+
+@app.get("/api/planner/graph", summary="Who works on what and what waits for what: employees, tasks, "
+                                        "dependencies, shared meetings")
+async def planner_graph(handle: str | None = Query(None, pattern=HANDLE),
+                        team: str | None = Query(None, min_length=1, max_length=64), start: date | None = None,
+                        limit: int = Query(80, ge=1, le=300)) -> Response:
+    return await forward("planner", "GET", "/graph", params=given(handle=handle, team=team, start=start, limit=limit))

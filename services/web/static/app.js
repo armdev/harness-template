@@ -559,8 +559,208 @@ async function pageChat() {
   q.focus();
 }
 
+// ------------------------------------------------------------------ Plan (planner: employees, tasks, meetings)
+const SEVERITIES = ["blocker", "critical", "major", "minor", "trivial"];
+const BUCKET_LABEL = { now: "do now", next: "next", later: "later", someday: "someday" };
+const PLAN_LEGEND = [["person", "le"], ["blocker", "sb"], ["critical", "sc"], ["major", "sm"], ["minor / trivial", "sn"]];
+const sevChip = s => `<span class="sev ${esc(s)}">${esc(s)}</span>`;
+const bucketChip = t => `<span class="bucket ${esc(t.bucket)}" title="score ${t.score}">${BUCKET_LABEL[t.bucket]} · ${t.score}</span>`;
+const personLink = (h, label) => h ? `<a href="#/plan/${encodeURIComponent(h)}">${esc(label || "@" + h)}</a>` : `<span class="m">unassigned</span>`;
+const hours = m => `${+(m / 60).toFixed(2)} h`;
+const dayName = d => new Date(d + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+
+// The same as ./app.sh seed planner: dates relative to today (day 0 = the first working day), upserted, repeatable.
+function workingDays(n) {
+  const out = [], d = new Date(); d.setHours(0, 0, 0, 0);
+  while (out.length < n) {
+    if (d.getDay() % 6 !== 0) out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+async function loadPlannerDataset(btn, msg) {
+  btn.disabled = true;
+  try {
+    const data = await (await fetch("/static/datasets/planner.json")).json();
+    const days = workingDays(1 + Math.max(...data.tasks.map(t => t.due_in || 0), ...data.meetings.map(m => m.day)));
+    const post = (path, body) => api(path, { method: "POST", body: JSON.stringify(body) });
+    const total = data.employees.length + data.tasks.length + data.meetings.length;
+    let n = 0;
+    const step = () => { msg.textContent = `loading ${++n} of ${total}…`; };
+    for (const e of data.employees) { await post("/planner/employees", e); step(); }
+    for (const t of data.tasks) {
+      const { due_in, ...body } = t;
+      await post("/planner/tasks", { ...body, due: due_in == null ? null : days[due_in] }); step();
+    }
+    for (const m of data.meetings) {
+      const [h, min] = m.start.split(":").map(Number), end = h * 60 + min + m.minutes;
+      const at = x => `${days[m.day]}T${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}:00`;
+      await post("/planner/meetings", { id: m.id, title: m.title, organizer: m.organizer, attendees: m.attendees,
+                                        starts_at: at(h * 60 + min), ends_at: at(end) }); step();
+    }
+    route();
+  } catch (e) { msg.textContent = e.message; btn.disabled = false; }
+}
+
+function taskRows(tasks, opts = {}) {
+  if (!tasks.length) return `<p class="empty">no tasks match</p>`;
+  return `<div class="table-wrap"><table class="tasks"><thead><tr>${opts.rank ? "<th>#</th>" : ""}<th>priority</th><th>task</th>
+    <th>severity</th><th>status</th>${opts.person ? "" : "<th>assignee</th>"}<th class="num">est.</th><th>due</th><th>why</th></tr></thead><tbody>
+    ${tasks.map((t, i) => `<tr class="${t.blocked_by.length ? "blocked" : ""}">${opts.rank ? `<td class="num">${i + 1}</td>` : ""}
+      <td>${bucketChip(t)}</td>
+      <td><b>${esc(t.key)}</b> ${esc(t.title)}${t.description ? `<div class="m clamp" title="${esc(t.description)}">${esc(t.description)}</div>` : ""}
+        ${opts.notes && opts.notes[t.key] ? `<div class="note">✦ ${esc(opts.notes[t.key])}</div>` : ""}</td>
+      <td>${sevChip(t.severity)}</td>
+      <td>${opts.person ? `<select class="status" data-key="${esc(t.key)}">${["todo", "in_progress", "review", "done"].map(s =>
+        `<option${s === t.status ? " selected" : ""}>${s}</option>`).join("")}</select>` : esc(t.status.replace("_", " "))}</td>
+      ${opts.person ? "" : `<td>${personLink(t.assignee)}</td>`}
+      <td class="num">${+t.estimate_hours} h</td><td>${t.due ? esc(t.due) : "—"}${opts.finishes && opts.finishes[t.key] ?
+        `<div class="m ${t.due && opts.finishes[t.key] > t.due ? "error" : ""}">ends ${esc(opts.finishes[t.key])}</div>` : ""}</td>
+      <td class="m">${t.reasons.map(esc).join(" · ")}${t.blocks.length ? `<div>unblocks ${t.blocks.map(esc).join(", ")}</div>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>`;
+}
+
+function planGraph(box, g) {
+  const fg = ForceGraph(box, { legend: PLAN_LEGEND, onOpen: n => go(n.type === "employee" ? `#/plan/${encodeURIComponent(n.ref)}` : `#/plan/${encodeURIComponent(n.assignee || "")}`) });
+  fg.add(g.nodes.map(n => n.type === "employee"
+    ? { ...n, cls: "", size: 6, label: n.label, hint: `${n.role} · ${n.team}` }
+    : { ...n, cls: n.severity, size: 1 + n.score / 25, hint: `${n.severity} · ${n.status} · score ${n.score} · @${n.assignee || "unassigned"}` }),
+  g.edges.map(e => ({ ...e, cls: e.kind, weight: e.weight || 1,
+    title: e.kind === "meets" ? `${e.weight} shared meeting(s) this week` : e.kind === "depends_on" ? "depends on" : "assigned" })));
+  return fg;
+}
+
+async function pagePlan(handle, q) {
+  if (handle) return pagePerson(handle, q);
+  const filters = { status: q.get("status") || "open", sort: q.get("sort") || "priority" };
+  for (const k of ["assignee", "project", "q"]) if (q.get(k)) filters[k] = q.get(k);
+  const sev = q.getAll("severity").filter(s => SEVERITIES.includes(s));
+  const params = new URLSearchParams({ ...filters, limit: 200 });
+  if (filters.status === "all") params.delete("status");
+  sev.forEach(s => params.append("severity", s));
+  const [team, list, g] = await Promise.all([get("/planner/employees"), api("/planner/tasks?" + params), get("/planner/graph", { limit: 60 })]);
+  const people = team.employees;
+  if (!people.length) {
+    view.innerHTML = `<div class="card"><h1>Plan</h1><p class="sub">No employees yet. Load the sample bank IT team: 11 people in 7 teams,
+      61 Jira-style tasks (severity, estimate, due date, dependencies) and two weeks of meetings, dated from today.</p>
+      <div class="row"><button id="load-team" class="primary">Load the iBank IT team</button><span id="team-msg" class="hint">or: <code>./app.sh seed planner</code></span></div></div>`;
+    document.getElementById("load-team").onclick = ev => loadPlannerDataset(ev.target, document.getElementById("team-msg"));
+    return;
+  }
+  const open = people.reduce((a, p) => a + p.open_tasks, 0), urgent = people.reduce((a, p) => a + p.urgent, 0);
+  const overdue = people.reduce((a, p) => a + p.overdue, 0), work = people.reduce((a, p) => a + p.open_hours, 0);
+  const projects = [...new Set(list.tasks.map(t => t.key.split("-")[0]))].sort();
+  view.innerHTML = `<h1>Plan</h1><p class="sub">Who works on what, what matters most and why. Every task is scored by its severity,
+      due date, the work that waits for it and whether it is started; open a person to plan their week around their meetings, or re-plan it with AI.
+      <button id="reload-team" class="small-btn">reload sample team</button> <span id="team-msg" class="hint"></span></p>
+    <div class="grid g4">
+      <div class="card tile author"><div class="n">${people.length}</div><div class="l">people</div></div>
+      <div class="card tile post"><div class="n">${nf.format(open)}</div><div class="l">open tasks · ${nf.format(Math.round(work))} h</div></div>
+      <div class="card tile bad"><div class="n">${urgent}</div><div class="l">to do now</div></div>
+      <div class="card tile warn"><div class="n">${overdue}</div><div class="l">overdue</div></div>
+    </div>
+    <div class="card"><h2>Team load: open work against 5 days of focus time</h2><div class="table-wrap"><table class="team">
+      <thead><tr><th>person</th><th>team</th><th class="num">open</th><th>load</th><th class="num">meetings</th><th class="num">do now</th><th class="num">overdue</th></tr></thead><tbody>
+      ${people.map(p => `<tr><td>${personLink(p.handle, p.name)}<div class="m">${esc(p.role)}</div></td><td>${esc(p.team)}</td>
+        <td class="num">${p.open_tasks} · ${+p.open_hours} h</td>
+        <td><div class="load ${p.load > 1 ? "over" : p.load > 0.8 ? "full" : ""}" title="${Math.round(p.load * 100)}% of ${p.capacity_hours} h × 5 days">
+          <div style="width:${Math.min(100, p.load * 100).toFixed(0)}%"></div><span>${Math.round(p.load * 100)}%</span></div></td>
+        <td class="num">${+p.meeting_hours} h</td><td class="num">${p.urgent || ""}</td><td class="num">${p.overdue ? `<b class="error">${p.overdue}</b>` : ""}</td></tr>`).join("")}
+      </tbody></table></div></div>
+    <div class="card"><h2>Tasks <span class="hint">${list.total} match${list.total > 200 ? ", first 200 shown" : ""}</span></h2>
+      <form id="tf" class="row filters">
+        <select name="assignee"><option value="">everyone</option>${people.map(p => `<option value="${esc(p.handle)}"${p.handle === filters.assignee ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
+        <select name="project"><option value="">all projects</option>${projects.map(p => `<option${p === filters.project ? " selected" : ""}>${esc(p)}</option>`).join("")}</select>
+        <select name="status">${["open", "todo", "in_progress", "review", "done", "all"].map(s => `<option${s === filters.status ? " selected" : ""}>${s}</option>`).join("")}</select>
+        <span class="sevs">${SEVERITIES.map(s => `<label><input type="checkbox" name="severity" value="${s}"${sev.includes(s) ? " checked" : ""}> ${s}</label>`).join("")}</span>
+        <input class="grow" name="q" placeholder="search title, description, key" value="${esc(filters.q || "")}">
+        <label class="hint">sort <select name="sort">${["priority", "due", "severity", "estimate", "key"].map(s => `<option${s === filters.sort ? " selected" : ""}>${s}</option>`).join("")}</select></label>
+        <button class="primary">Filter</button></form>
+      ${taskRows(list.tasks)}</div>
+    <div class="card"><h2>Work graph: people, their most important open tasks, what waits for what, who meets whom</h2>
+      <div id="plan-graph" class="graph-box"></div>
+      <p class="hint">Task size = priority score; arrows of dependency are dashed; a line between two people = meetings together this week. Double-click to open a person.</p></div>`;
+  document.getElementById("tf").onsubmit = ev => {
+    ev.preventDefault();
+    const f = new FormData(ev.target), p = new URLSearchParams();
+    for (const [k, v] of f.entries()) if (v) p.append(k, String(v));
+    go("#/plan?" + p);
+  };
+  document.getElementById("reload-team").onclick = ev => loadPlannerDataset(ev.target, document.getElementById("team-msg"));
+  planGraph(document.getElementById("plan-graph"), g);
+}
+
+function weekView(plan) {
+  const H0 = 9 * 60, H1 = 18 * 60, pct = t => { const [h, m] = t.split(":").map(Number); return (100 * (h * 60 + m - H0) / (H1 - H0)).toFixed(2); };
+  const block = (cls, a, b, label, title) => `<div class="blk ${cls}" style="top:${pct(a)}%;height:${(pct(b) - pct(a)).toFixed(2)}%" title="${esc(title)}">${esc(label)}</div>`;
+  return `<div class="week">${plan.days.map(d => `<div class="day${d.off ? " off" : ""}"><div class="dh"><b>${esc(dayName(d.date))}</b>
+      <span class="m">${d.off ? "day off" : `${hours(d.focus_minutes)} tasks · ${hours(d.meeting_minutes)} meetings`}</span></div>
+      <div class="col">${[10, 11, 12, 13, 14, 15, 16, 17].map(h => `<i class="hr" style="top:${pct(`${h}:00`)}%"><span>${h}</span></i>`).join("")}
+        <div class="blk lunch" style="top:${pct("13:00")}%;height:${(pct("14:00") - pct("13:00")).toFixed(2)}%"></div>
+        ${d.meetings.map(m => block("meet", m.start, m.end, m.title, `${m.start}–${m.end} ${m.title}`)).join("")}
+        ${d.items.map(i => block("task " + i.severity, i.start, i.end, `${i.key} ${i.title}`, `${i.start}–${i.end} ${i.key} ${i.title} (${i.severity})`)).join("")}
+      </div></div>`).join("")}</div>`;
+}
+
+const AI_HINTS = ["Incidents and security first, then deadlines", "Unblock my colleagues first", "I am off on Friday", "Finish what I started before new work"];
+
+async function pagePerson(handle, q) {
+  const days = Math.min(10, Math.max(1, Number(q.get("days")) || 5));
+  const [base, g] = await Promise.all([get(`/planner/plan/${encodeURIComponent(handle)}`, { days }), get("/planner/graph", { handle })]);
+  const e = base.employee;
+  view.innerHTML = `<p class="crumbs"><a href="#/plan">Plan</a> / ${esc(e.team)}</p>
+    <div class="row"><h1 class="grow">${esc(e.name)} <span class="hint">@${esc(e.handle)} · ${esc(e.role)} · ${e.capacity_hours} focus h/day</span></h1>
+      <label class="hint">days <select id="days">${[5, 10].map(n => `<option${n === days ? " selected" : ""}>${n}</option>`).join("")}</select></label></div>
+    <div class="card ai"><h2>Re-plan with AI</h2>
+      <p class="hint">The model re-orders the open tasks following your instruction and may mark days off; the rules then check it: dependencies first,
+        meetings and focus hours respected. Without a model the plan stays the rules' plan.</p>
+      <form id="aif" class="row"><input class="grow" name="instruction" maxlength="500" placeholder="e.g. ${esc(AI_HINTS[0])}">
+        <button class="primary">Re-plan with AI</button><button type="button" id="rules">Rules' plan</button></form>
+      <div class="row hints">${AI_HINTS.map(h => `<button type="button" class="sugg small-btn">${esc(h)}</button>`).join("")}</div></div>
+    <div id="plan-out"></div>
+    <div class="card"><h2>Work graph of ${esc(e.name)}: tasks, what they wait for, who waits for them, who they meet</h2>
+      <div id="plan-graph" class="graph-box small"></div></div>`;
+  const out = document.getElementById("plan-out");
+  const show = plan => {
+    out.innerHTML = `<div class="card summary ${plan.source}"><div class="row"><h2 class="grow">${plan.source === "model" ? `AI plan <span class="chip score">${esc(plan.model)}</span>` : "Plan by the rules"}</h2>
+        ${plan.source === "model" ? `<span class="hint">${plan.changed} of ${plan.order.length} positions changed${plan.days_off.length ? ` · off: ${plan.days_off.map(esc).join(", ")}` : ""}</span>` : ""}</div>
+        <p>${esc(plan.summary)}</p>${plan.fallback ? `<p class="hint error">${esc(plan.fallback)}</p>` : ""}
+        ${plan.warnings.length ? `<ul class="warn">${plan.warnings.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}</div>
+      <div class="card"><h2>Week</h2>${weekView(plan)}
+        <p class="hint"><span class="sev blocker">blocker</span> <span class="sev critical">critical</span> <span class="sev major">major</span>
+          <span class="sev minor">minor</span> tasks · grey: meetings · lunch 13–14</p></div>
+      <div class="card"><h2>Order of work <span class="hint">${plan.tasks.length} open tasks${plan.source === "model" ? ", in the model's order" : ", by priority"}</span></h2>
+        ${taskRows(plan.tasks, { rank: true, person: true, notes: plan.notes, finishes: plan.finishes })}</div>
+      ${plan.unscheduled.length ? `<div class="card"><h2>Does not fit</h2><ul class="list">${plan.unscheduled.map(u =>
+        `<li><b>${esc(u.key)}</b> ${esc(u.title)} ${sevChip(u.severity)} <div class="m">${esc(u.reason)}</div></li>`).join("")}</ul></div>` : ""}`;
+    out.querySelectorAll("select.status").forEach(s => {
+      s.onchange = async () => {
+        s.disabled = true;
+        try { await api(`/planner/tasks/${encodeURIComponent(s.dataset.key)}/status`, { method: "POST", body: JSON.stringify({ status: s.value }) }); route(); }
+        catch (err) { s.disabled = false; alert(err.message); }
+      };
+    });
+  };
+  show(base);
+  const form = document.getElementById("aif"), btn = form.querySelector("button.primary");
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    btn.disabled = true; btn.textContent = "Thinking…";
+    try {
+      show(await api(`/planner/plan/${encodeURIComponent(handle)}/ai`, { method: "POST",
+        body: JSON.stringify({ instruction: String(new FormData(form).get("instruction") || ""), days }) }));
+    } catch (err) { out.insertAdjacentHTML("afterbegin", `<p class="error">${esc(err.message)}</p>`); }
+    finally { btn.disabled = false; btn.textContent = "Re-plan with AI"; }
+  };
+  document.getElementById("rules").onclick = () => show(base);
+  document.querySelectorAll(".hints .sugg").forEach(b => { b.onclick = () => { form.instruction.value = b.textContent; }; });
+  document.getElementById("days").onchange = ev => go(`#/plan/${encodeURIComponent(handle)}?days=${ev.target.value}`);
+  planGraph(document.getElementById("plan-graph"), g);
+}
+
 // ------------------------------------------------------------------ router
-const routes = { "": pageAnalyze, search: pageSearch, write: pageWrite, post: pagePost, tag: pageTag, author: pageAuthor, graph: pageGraph, chat: pageChat };
+const routes = { "": pageAnalyze, search: pageSearch, write: pageWrite, post: pagePost, tag: pageTag, author: pageAuthor, graph: pageGraph, chat: pageChat, plan: pagePlan };
 
 async function route() {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");

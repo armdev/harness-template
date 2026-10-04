@@ -1,10 +1,14 @@
-"""Seed the application with a dataset of posts through the public API, so search, graph, notify and chat all get them.
+"""Seed the application with a dataset through the public API, so every service sees the data as users would add it.
 
   python tools/seed.py bank        # a dataset from services/web/static/datasets (general, bank, ibank), or a .json path
   ./app.sh seed bank  ·  make seed d=bank
+  ./app.sh seed planner            # employees, Jira-style tasks and meetings for the planner
 
-The dataset is validated first (the same rules as POST /api/posts). Seeding is idempotent: a post is skipped when its
-author already has a post with the same title, so running it twice adds nothing.
+Posts: the dataset is validated first (the same rules as POST /api/posts). Seeding is idempotent: a post is skipped
+when its author already has a post with the same title, so running it twice adds nothing.
+Planner ({"kind": "planner", ...}): employees, tasks and meetings are upserted by handle, key and id. Their dates are
+relative (day 0 = the first working day from today), so seeding again moves the demo to the current week and resets
+the tasks' status.
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ import os
 import re
 import sys
 import time
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -29,7 +34,7 @@ def datasets_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "services/web/static/datasets"
 
 
-def load(name: str) -> list[dict]:
+def load(name: str) -> list[dict] | dict:
     datasets = datasets_dir()
     path = Path(name) if name.endswith(".json") else datasets / f"{name}.json"
     if not path.is_file():
@@ -84,9 +89,51 @@ def wait_indexed(api: httpx.Client, post_id: int, timeout: float = 60) -> bool:
     return False
 
 
+def working_days(start: date, n: int) -> list[date]:
+    """The planner's calendar: n weekdays from start (Saturday and Sunday are skipped)."""
+    days, d = [], start
+    while len(days) < n:
+        if d.weekday() < 5:
+            days.append(d)
+        d += timedelta(days=1)
+    return days
+
+
+def seed_planner(name: str, data: dict, today: date) -> int:
+    """Employees, then tasks (due_in: working days from today), then meetings (day: working-day offset)."""
+    horizon = 1 + max([t["due_in"] or 0 for t in data["tasks"]] + [m["day"] for m in data["meetings"]])
+    days = working_days(today, horizon)
+    with httpx.Client(base_url=GATEWAY_URL, timeout=15) as api:
+        def put(path: str, body: dict, what: str) -> bool:
+            r = api.post(path, json=body)
+            if r.status_code != 200:
+                print(f"{name}: POST {path} failed for {what}: {r.status_code} {r.text}", file=sys.stderr)
+            return r.status_code == 200
+
+        for e in data["employees"]:
+            if not put("/api/planner/employees", e, e["handle"]):
+                return 1
+        for t in data["tasks"]:
+            body = {k: v for k, v in t.items() if k != "due_in"}
+            body["due"] = None if t.get("due_in") is None else str(days[t["due_in"]])
+            if not put("/api/planner/tasks", body, t["key"]):
+                return 1
+        for m in data["meetings"]:
+            starts = datetime.combine(days[m["day"]], datetime.strptime(m["start"], "%H:%M").time())
+            body = {k: m[k] for k in ("id", "title", "organizer", "attendees")} | {
+                "starts_at": starts.isoformat(), "ends_at": (starts + timedelta(minutes=m["minutes"])).isoformat()}
+            if not put("/api/planner/meetings", body, m["id"]):
+                return 1
+    print(f"{name}: {len(data['employees'])} employees, {len(data['tasks'])} tasks, {len(data['meetings'])} meetings "
+          f"(day 0 = {days[0]})")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     name = argv[1] if len(argv) > 1 else "general"
     posts = load(name)
+    if isinstance(posts, dict) and posts.get("kind") == "planner":
+        return seed_planner(name, posts, date.today())
     if errors := problems(posts):
         print(f"{name}: invalid dataset\n  " + "\n  ".join(errors), file=sys.stderr)
         return 1

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The application alone: the RAG system (web, gateway, content, search, notify, graph, chat + postgres, kafka, neo4j),
+# The application alone: the RAG system (web, gateway, content, search, notify, graph, chat, planner + postgres, kafka,
+# neo4j),
 # without the harness, the console or make. Needs only docker (compose v2) and curl.
 #
 #   ./app.sh [up]            build + start the application, wait until healthy, smoke-test it, print URLs
@@ -9,7 +10,8 @@
 #   ./app.sh status          service status and URLs
 #   ./app.sh logs [service]  follow logs (all services, or one: ./app.sh logs search)
 #   ./app.sh test            the API specification (contract suite) against the running application
-#   ./app.sh seed [dataset]  load sample posts through the API: general, bank, ibank or a .json file; repeatable
+#   ./app.sh seed [dataset]  load sample data through the API: general, bank, ibank (posts), planner (employees, tasks,
+#                            meetings) or a .json file; repeatable
 #   ./app.sh down            stop (data in DATA_DIR is kept)
 #   ./app.sh export <dir>    copy the application, without the harness, into <dir> (a standalone project)
 #   ./app.sh help            this text
@@ -105,11 +107,14 @@ smoke() {
            -d "{\"messages\":[{\"role\":\"user\",\"content\":\"What is $marker about?\"}]}")
   grep -q "\"id\": $id" <<< "$answer" \
     && ok "chat answers with post $id among its sources" || { fail "chat did not use post $id: ./app.sh logs chat"; return 1; }
+  local team
+  team=$(curl -fsS "$WEB/api/planner/employees") && grep -q '"employees"' <<< "$team" \
+    && ok "planner answers through the portal" || { fail "the planner does not answer: ./app.sh logs planner"; return 1; }
 }
 
 urls() {
   printf '\n%sURLs%s\n' "$B" "$N"
-  printf '  %-24s %s%s%s\n' "Web portal (rag-web)" "$C" "$WEB" "$N  analyze · search · graph · chat · write"
+  printf '  %-24s %s%s%s\n' "Web portal (rag-web)" "$C" "$WEB" "$N  analyze · search · graph · chat · plan · write"
   printf '  %-24s %s%s%s\n' "API docs (Swagger UI)" "$C" "$API/docs" "$N"
   printf '  %-24s %s%s%s\n' "OpenAPI schema" "$C" "$API/openapi.json" "$N"
   printf '  %-24s %s\n' "  posts" "POST $API/api/posts · GET $API/api/posts/{id} · GET $API/api/posts?author="
@@ -117,6 +122,7 @@ urls() {
   printf '  %-24s %s\n' "  knowledge graph" "GET  $API/api/posts/{id}/related · /api/tags/{tag}[/posts] · /api/graph/overview"
   printf '  %-24s %s\n' "  notifications" "GET  $API/api/notifications?author="
   printf '  %-24s %s\n' "  chat (RAG answer)" "POST $API/api/chat   (streamed; model: $(env_value CHAT_LLM_URL http://ollama:11434/v1))"
+  printf '  %-24s %s\n' "  planner" "GET  $API/api/planner/employees · /tasks · /plan/{handle} · POST /plan/{handle}/ai"
   if "${DC[@]}" --profile observability ps --status running --services 2>/dev/null | grep -qx prometheus; then
     printf '  %-24s %s%s%s\n' "Prometheus" "$C" "$PROMETHEUS" "$N"
   fi
@@ -137,11 +143,13 @@ export_app() {
 # RAG application
 
 Posts (content), full-text search (search), notifications (notify) and a knowledge graph (graph, Neo4j)
-behind one public gateway, and a web portal (web) for all of it: http://localhost:8081. Services call each other with Ed25519-signed requests; posts flow to search,
+behind one public gateway, a planner of employees' tasks and meetings (planner, rules + a language model), and a web
+portal (web) for all of it: http://localhost:8081. Services call each other with Ed25519-signed requests; posts flow to search,
 notify and graph over Kafka (`content.post.created`).
 
     ./app.sh            build + start, smoke test, URLs   (needs docker with compose v2, and curl)
     ./app.sh seed bank  load 100 banking posts (loans, credit, debit, payments, risk); or: general
+    ./app.sh seed planner   load a bank IT team: 11 employees, 61 Jira-style tasks, 57 meetings (Plan page)
     ./app.sh test       API specification (contract suite)
     ./app.sh down       stop; data stays in DATA_DIR (default /var/tmp/air-harness)
 
@@ -210,7 +218,7 @@ case "$cmd" in
     urls ;;
   logs)  preflight; "${DC[@]}" logs -f --tail=200 "$@" ;;
   test)  preflight; run "${DC[@]}" --profile tools run --rm --build contract ;;
-  seed)  case "${1:-}" in *.json) [ -f "$1" ] || die "no such file: $1 (give the path of a dataset .json, or a name: general, bank, ibank)" ;; esac
+  seed)  case "${1:-}" in *.json) [ -f "$1" ] || die "no such file: $1 (give the path of a dataset .json, or a name: general, bank, ibank, planner)" ;; esac
          preflight
          if [ -f "${1:-}" ]; then          # a dataset file on this machine: hand it to the seed container
            file="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"

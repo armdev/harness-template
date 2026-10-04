@@ -102,6 +102,9 @@ flowchart LR
     gw -->|signed · streamed| chat[chat<br/>RAG answers]
     chat -->|retrieve| search & kg & content
     chat -.->|OpenAI-compatible| llm[(LLM<br/>Ollama or hosted)]
+    gw -->|signed Ed25519| planner[planner<br/>tasks · meetings · plans]
+    planner -.->|re-plan| llm
+    planner -->|planner_svc · schema planner| pg
     content -->|content.post.created| kafka[(Kafka<br/>KRaft)]
     kafka -->|consumer group 'search'| search
     kafka -->|consumer group 'notify'| notify
@@ -110,7 +113,7 @@ flowchart LR
     search -->|search_svc · schema search| pg
     notify -->|notify_svc · schema notify| pg
     kg -->|bolt · Author-WROTE-Post-TAGGED-Tag| neo[(Neo4j)]
-    prom[Prometheus] -.->|scrape /metrics| web & gw & content & search & notify & kg & chat
+    prom[Prometheus] -.->|scrape /metrics| web & gw & content & search & notify & kg & chat & planner
 ```
 
 | Service | Responsibility | Exposed | Data | Trusts |
@@ -122,6 +125,7 @@ flowchart LR
 | notify | records one notification per new post (stand-in for e-mail); lists them | internal `:8000` | `notify.outbox` (role `notify_svc`) | gateway |
 | graph | knowledge graph of authors, posts and tags; related posts, tag neighbourhoods, tagged posts, overview | internal `:8000` | Neo4j (`Author`, `Post`, `Tag`; schema in `db/graph`) | gateway, chat |
 | chat | answers questions: search → graph → content → model, citing `[#id]`, streamed (SSE); sources only without a model | internal `:8000` | — (calls a model at `CHAT_LLM_URL`) | gateway |
+| planner | employees, Jira-style tasks, meetings; task priority with reasons, week plans around meetings, model re-plan checked by the rules, work graph ([details](08-planner.md)) | internal `:8000` | `planner.employees`, `tasks`, `meetings` (role `planner_svc`) | gateway |
 
 ### Cross-cutting decisions
 
@@ -148,10 +152,11 @@ flowchart TB
     kf -->|healthy| ki[kafka-init<br/>one-shot]
     sk[service-keys<br/>one-shot]
     sk & mig & ki -->|completed| content & search & notify
+    sk & mig -->|completed| planner[planner]
     sk --> gw[gateway]
     sk & gi & ki -->|completed| kg
     content & search & kg -->|healthy| chat[chat]
-    content & search & notify & kg & chat -->|healthy| gw
+    content & search & notify & kg & chat & planner -->|healthy| gw
     gw -->|healthy| web[web]
 ```
 
