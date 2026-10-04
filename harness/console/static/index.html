@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>air-harness console</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><span class="logo">◆</span> air-harness <span id="version" class="muted"></span></div>
+  <nav id="tabs">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="api">API</button>
+    <button data-tab="harness">Harness</button>
+    <button data-tab="agent">Agent</button>
+    <button data-tab="guides">Guides</button>
+  </nav>
+  <div id="verdict" class="pill">…</div>
+</header>
+
+<main>
+  <!-- Overview -->
+  <section id="overview" class="tab active">
+    <div class="grid3">
+      <div class="card"><h3>Reference system</h3><div id="health"></div>
+        <p class="muted">Public API at <a id="gw-link" target="_blank" rel="noopener"></a> ·
+          <a id="docs-link" target="_blank" rel="noopener">Swagger</a> ·
+          <a id="prom-link" target="_blank" rel="noopener">Prometheus</a></p>
+        <button class="act" data-action="up">Start stack</button></div>
+      <div class="card"><h3>Harness</h3><p id="ov-verdict" class="big"></p><p id="ov-sensors" class="muted"></p>
+        <button class="act" data-action="fast">Run fast loop</button>
+        <button class="act" data-action="integration">Run integration</button></div>
+      <div class="card"><h3>Coding agent</h3><p id="ov-agent"></p>
+        <button onclick="show('agent')">Hand it a task →</button></div>
+    </div>
+    <div class="card">
+      <h3>How it works</h3>
+      <ol class="loop">
+        <li><b>Guides</b> steer the agent before it acts: <code>AGENTS.md</code>, skills, the review rubric, prompts.</li>
+        <li>The agent <b>edits the code</b>.</li>
+        <li><b>Sensors</b> check the change: topology, migrations, lint, organisation rules, the review agent; then unit,
+          contract and search-quality tests against the running stack.</li>
+        <li>The harness writes one <b>report</b>: GREEN, or RED with how to fix each blocking failure.</li>
+        <li>The agent reads it and fixes; its Stop hook will not let it finish while the static sensors are RED.</li>
+      </ol>
+      <p class="muted">Every run lands in the ledger: the <b>Agent</b> tab shows it as a timeline, the <b>Harness</b> tab
+        shows each sensor's latest result and whether its seeded defects still prove it can fire.</p>
+    </div>
+  </section>
+
+  <!-- API -->
+  <section id="api" class="tab">
+    <div class="toolbar"><input id="op-filter" placeholder="filter endpoints…"><span class="muted" id="api-src"></span></div>
+    <div id="ops"></div>
+  </section>
+
+  <!-- Harness -->
+  <section id="harness" class="tab">
+    <div class="card"><h3>Run</h3><div id="actions" class="actions"></div></div>
+    <div class="cols">
+      <div class="card"><h3>Sensors</h3><table id="sensors"></table></div>
+      <div class="card"><h3>Report <span class="muted small">.harness/report.md</span></h3><div id="report" class="md"></div>
+        <p id="eval-link" class="muted small"></p></div>
+    </div>
+  </section>
+
+  <!-- Agent -->
+  <section id="agent" class="tab">
+    <div class="cols">
+      <div class="card">
+        <h3>Give the agent a task</h3>
+        <p class="muted small" id="agent-cmd"></p>
+        <label>Start from <select id="prompt-pick"></select></label>
+        <p id="prompt-when" class="muted small"></p>
+        <div id="task-row"><input id="task" placeholder="Describe the task, e.g. Add rate limiting to search"></div>
+        <textarea id="prompt-text" rows="14" spellcheck="false"></textarea>
+        <div class="actions">
+          <button id="run-agent" class="primary">Run agent</button>
+          <button id="copy-prompt">Copy prompt</button>
+          <button id="copy-cmd">Copy terminal command</button>
+        </div>
+        <p id="agent-note" class="muted small"></p>
+      </div>
+      <div class="card">
+        <h3>What the agent's checks did <span class="muted small">(ledger)</span></h3>
+        <div id="timeline"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Guides -->
+  <section id="guides" class="tab">
+    <div class="cols narrow-left">
+      <div class="card"><h3>Files</h3><ul id="files" class="files"></ul></div>
+      <div class="card"><h3 id="file-title">Select a guide</h3><div id="file" class="md"></div></div>
+    </div>
+  </section>
+</main>
+
+<!-- job drawer -->
+<aside id="drawer" class="hidden">
+  <div class="drawer-head"><b id="job-title"></b> <code id="job-cmd" class="small"></code>
+    <span id="job-status" class="pill"></span><button id="drawer-close">×</button></div>
+  <pre id="job-log"></pre>
+</aside>
+
+<script src="app.js"></script>
+</body>
+</html>

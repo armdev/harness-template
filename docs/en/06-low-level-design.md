@@ -109,7 +109,7 @@ is clean there, consider a later stage; *blind/noisy* → fix the sensor; no ver
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.4.2 }
+template: { name: py-services-pg-kafka, version: 0.5.0 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <unique>                 # referenced by sensors.pairs_with
@@ -133,7 +133,7 @@ sensors:
 
 ## 6.3 Sensor containers (`compose.harness.yml`, `harness.mk`)
 
-Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.4.2}`, profile `harness`,
+Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.5.0}`, profile `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (set by make to the invoking user), `read_only: true`, `tmpfs: /tmp`,
 `cap_drop: [ALL]`, `no-new-privileges`, the repository at `/work:ro` and `./.harness` at `/out`.
 
@@ -439,7 +439,7 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | empty (review skipped), `qwen3:8b` | review agent (opt-in) |
 | `REVIEW_DIFF_BASE` | empty | what the reviewer reviews |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, empty | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.4.2, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.5.0, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | host name printed by `run.sh` |
 
 Next: [Demo](07-demo.md) · back to the [documentation index](../README.md).

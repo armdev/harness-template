@@ -1,5 +1,23 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.5.0
+
+- **Web console** (`harness/console/`, `make console`, `./run.sh --console` → http://127.0.0.1:8090). Until now the
+  harness was a set of terminal commands and a Markdown report; it was hard to see what an agent actually does.
+  One page now shows and drives all of it:
+  - **API**: forms generated from the gateway's OpenAPI for every endpoint (new endpoints appear on their own,
+    also in adopted projects); request, response, status, latency, `curl`.
+  - **Harness**: every stage and selftest one click away with live output; each sensor's last result, selftest
+    verdict and history; the report.
+  - **Agent**: compose a prompt (guided prompts, the task template), **Run agent** (`AGENT_CMD`, default
+    `claude -p --permission-mode acceptEdits`) with live output, and a timeline of every harness run in the
+    ledger — including the runs the agent's Stop hook triggers.
+  - **Guides**: AGENTS.md, skills, rubric, prompts, changelog.
+  Host plane, stdlib + PyYAML, no build step; listens on 127.0.0.1, runs only allowlisted make targets one at a
+  time, serves only allowlisted files, and requires an `X-Console` header on every POST (no cross-site requests).
+  Settings: `CONSOLE_PORT`, `AGENT_CMD` (read from `.env` too). Upstream-owned for `install.py --upgrade`.
+- First-run impact on existing projects: none.
+
 ## 0.4.2
 
 Steering signals that were wrong, found by reading `make harness-stats` on this repository.

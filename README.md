@@ -38,6 +38,7 @@ Accessible URLs
 
 | Command | What it does |
 |---|---|
+| `./run.sh --console` | … and start the **web console** on http://127.0.0.1:8090 (also: `make console`) |
 | `./run.sh` | start the stack (+ Prometheus), smoke test, URLs, next steps |
 | `./run.sh --check` | … then prove the harness: selftest, fast loop, unit + contract suite |
 | `./run.sh --full` | … `--check` plus the pipeline stage (search eval, alert rules) — what CI runs |
@@ -48,6 +49,23 @@ Accessible URLs
 Requirements: Docker Engine 26+ with Compose v2.24+, GNU make, bash, curl. The host-plane stages
 (`--check`, `--full`) also need `python3` with PyYAML (`pip install pyyaml`). Configuration: every setting has
 a default; `cp .env.example .env` to change one (`./help.sh config`).
+
+### The console — everything in one web UI
+
+![air-harness console: overview](docs/assets/console-overview.png)
+
+`./run.sh --console` (or `make console` on a running stack) opens http://127.0.0.1:8090:
+
+| Tab | What you do there |
+|---|---|
+| **Overview** | stack health, the harness verdict, how the loop works, quick actions |
+| **API** | call every public endpoint from forms generated from the gateway's OpenAPI: request, response, status, latency, `curl` |
+| **Harness** | run any stage (fast, integration, pipeline, selftests, coverage, stats, tests) with live output; the report; every sensor with its last result, selftest verdict and history |
+| **Agent** | compose a task prompt (or pick a guided one), **run the coding agent** (`AGENT_CMD`, Claude Code by default) and watch its output; a timeline of every harness run — including the ones the agent's Stop hook triggers |
+| **Guides** | read AGENTS.md, the skills, the rubric, the prompts, the changelog |
+
+It runs on your machine (host plane: it calls `make`, never mounts the Docker socket), listens on 127.0.0.1 only,
+runs only allowlisted make targets, one at a time, and serves only an allowlist of files.
 
 ## 2. Learn the loop
 
@@ -103,6 +121,7 @@ harness.yaml                  manifest: every guide and sensor, its plane, stage
 harness.mk  compose.harness.yml   harness make targets; the sensor containers (static: no network, live: LLM/stack)
 harness/
   harness.py                  runner: run · selftest · coverage · stats · list
+  console/                    web console: server.py (stdlib) + static/ (no build step)
   install.py                  install into another project (--upgrade later); templates/ for its AGENTS.md, CLAUDE.md, ruff.toml
   Dockerfile                  runner image with pinned tool versions (the distributable part)
   sensors/                    topology_check.py · migrations_check.py · review.py · deps_audit.py ·

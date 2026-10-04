@@ -112,7 +112,7 @@ def manifest(project: Path, src: list[str], migrations: str | None) -> dict:
 # Upstream-owned: replaced on --upgrade. Everything else under harness/ (rubric, skills, prompts, the project's own
 # rules and fixtures, vulture whitelist) belongs to the project once installed: added when missing, never replaced.
 MACHINERY = ("harness.py", "Dockerfile", "HARNESS.md", "CHANGELOG.md", "sensors/*.py", "hooks/*", "tests/*",
-             "sensors/fixtures/**", "rules/semgrep/python.yml")
+             "sensors/fixtures/**", "rules/semgrep/python.yml", "console/**")
 
 
 def upstream_owned(rel: Path) -> bool:

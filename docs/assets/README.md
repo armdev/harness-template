@@ -13,4 +13,7 @@ Screenshots and the demo GIFs used by `docs/en/07-demo.md` and `docs/ru/07-demo.
   alerts or documented variable, plus an f-string SQL query).
 - `demo-en.gif` / `demo-ru.gif`: the same screenshots in sequence with captions (1200×760, ~46 s, ~0.9 MB each).
 
+- `console-*.png`: the web console (`./run.sh --console`) on 2026-10-04, Chromium (Playwright) against the running
+  stack; the agent run is a real `claude -p` call with a read-only prompt.
+
 Re-capture them when the output of `run.sh`, the report format or the UI changes noticeably.

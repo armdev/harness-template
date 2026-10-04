@@ -7,7 +7,7 @@ stage ?= pre-commit
 OUT_DIR := .harness
 
 .PHONY: harness-fast harness-static harness-integration harness-pipeline harness-continuous harness-selftest harness-coverage \
-        harness-stats harness-list harness-one harness-test harness-build harness-doctor harness-selftest-live harness-selftest-host
+        harness-stats harness-list harness-one harness-test harness-build harness-doctor harness-selftest-live harness-selftest-host console
 
 harness-fast:            | $(OUT_DIR) ## pre-commit: hermetic static sensors (blocking) + review agent (advisory)
 	$(HC) run --rm harness run --stage pre-commit
@@ -52,6 +52,9 @@ harness-list:            | $(OUT_DIR) ## every sensor: stage, plane, blocking, c
 harness-test:            | $(OUT_DIR) ## unit tests and lint of the harness itself
 	$(HC) run --rm --entrypoint sh harness -c \
 	  'ruff check --output-format=concise harness && pytest -q -p no:cacheprovider harness/tests'
+
+console:                 harness-doctor ## web console: API playground, harness runs, agent tasks → http://127.0.0.1:8090
+	python3 harness/console/server.py
 
 harness-build:           ## (re)build the runner image
 	$(HC) --profile harness build harness

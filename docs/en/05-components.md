@@ -41,6 +41,7 @@ docs/                         this documentation
 | Stop hook | `harness/hooks/agent-stop.sh` | blocks an agent from finishing while static sensors are RED | hook JSON on stdin → exit 0/2 |
 | Harness tests | `harness/tests/` | tests of the runner and sensors | — |
 | Changelog | `harness/CHANGELOG.md` | versions and expected first-run impact of new rules | — |
+| Console | `harness/console/server.py`, `static/` | web UI on 127.0.0.1:8090: OpenAPI-driven API forms, allowlisted make targets with live output, sensors, report, agent runs (`AGENT_CMD`), ledger timeline, guides | `.harness/`, manifest, gateway → browser |
 | Installer | `harness/install.py` | installs the harness into another project with a manifest that fits it; `--upgrade` replaces only upstream-owned machinery | project dir → harness files, `harness.yaml` |
 | Install templates | `harness/templates/` | `AGENTS.md`, `CLAUDE.md`, `ruff.toml` written into a project that has none | — |
 

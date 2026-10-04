@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.4.2
+# Harness template `py-services-pg-kafka` v0.5.0
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.
@@ -22,6 +22,8 @@ and it is packaged so that it can be versioned, instantiated and measured like a
 | Seeded defects | `harness/sensors/fixtures/` | proof that each sensor can still fire — and stays quiet on clean input |
 | Agent wiring | `CLAUDE.md`, `.claude/`, `harness/hooks/agent-stop.sh`, `.githooks/pre-commit` | puts the loop where the agent and the human both hit it |
 | Harness tests | `harness/tests/` | the harness is code too: `make harness-test` |
+| Console | `harness/console/` | `make console`: a web UI over all of it — API playground (from OpenAPI), stage runs, sensors, report, agent runs and the ledger timeline |
+| Installer | `harness/install.py` | adopt into another project; `--upgrade` later |
 
 ### Sensors
 

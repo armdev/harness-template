@@ -92,4 +92,29 @@ ReDoc по адресу `/redoc`:
 
 ![help.sh prompt 02](../assets/terminal-prompt-02.png)
 
+## 6. Веб-консоль
+
+`./run.sh --console` → http://127.0.0.1:8090. Снято при работающем стеке в Chromium (Playwright).
+
+**Overview** — здоровье стека, вердикт, цикл:
+
+![обзор консоли](../assets/console-overview.png)
+
+**API** — формы, построенные по OpenAPI gateway; здесь создаётся пост и находится через поиск:
+
+![песочница API](../assets/console-api.png)
+
+**Harness** — любая стадия в один клик; у каждого сенсора последний результат, вердикт selftest и история:
+
+![harness в консоли](../assets/console-harness.png)
+
+**Agent** — настоящий запуск: промпт уходит в `claude -p`, ответ приходит потоком, а лента показывает запуск
+pre-commit, который выполнил его Stop-хук при завершении:
+
+![запуск агента](../assets/console-agent-run.png)
+
+**Guides** — AGENTS.md, навыки, рубрика и промпты:
+
+![гайды в консоли](../assets/console-guides.png)
+
 Назад к [оглавлению документации](../README.md) · предыдущая: [Низкоуровневый дизайн](06-low-level-design.md)

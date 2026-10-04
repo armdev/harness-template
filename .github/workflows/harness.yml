@@ -53,6 +53,13 @@ jobs:
         if: github.event_name != 'schedule'
         run: ./run.sh --full
 
+      - name: Web console smoke test (serves state and proxies the running API)
+        if: github.event_name != 'schedule'
+        run: |
+          python3 harness/console/server.py > "$RUNNER_TEMP/console.log" 2>&1 &
+          curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8090/api/state > /dev/null
+          curl -fsS http://127.0.0.1:8090/gw/openapi.json | grep -q '"/api/posts"'
+
       - name: Report
         if: always()
         run: |
