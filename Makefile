@@ -46,7 +46,7 @@ eval:                    ## search quality against eval/baseline.json; report in
 
 llm:                     ## start the local LLM and pull the review model
 	$(COMPOSE) --profile local-llm up -d ollama
-	$(COMPOSE) --profile local-llm exec ollama ollama pull $(strip $(LLM_MODEL))
+	tools/ollama-pull.sh http://127.0.0.1:$(or $(OLLAMA_PORT),11434) $(strip $(LLM_MODEL)) container
 
 clean:                   ## stop the stack and drop compose volumes (service keys); DATA_DIR is kept
 	$(COMPOSE) --profile observability --profile local-llm --profile tools down -v --remove-orphans
