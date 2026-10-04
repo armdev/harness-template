@@ -394,14 +394,14 @@ and without a model.
 
 The portal: a FastAPI app (`services/web/app.py`) that serves a dependency-free browser client
 (`services/web/static/`: `index.html`, `app.js` — router and pages, `graph.js` — force-directed SVG graph,
-`style.css`, `sample-posts.json`) and forwards `GET`/`POST /api/{path}` to the gateway with `SignedClient`
+`style.css`, `datasets/` — sample data: `index.json`, `general.json`, `bank.json`) and forwards `GET`/`POST /api/{path}` to the gateway with `SignedClient`
 (signed as `web`; the gateway API is public, so it trusts no list). Same origin for page and API: no CORS.
 Body limit 64 KiB (413), `..` segments rejected (404), other methods 405, gateway down → 502; status and body
 of the gateway pass through unchanged. Host port `WEB_PORT` (8081).
 
 | Page | Route | Calls |
 |---|---|---|
-| Analyze | `#/` | `/api/graph/overview` — counts, top tags/authors, topic map (tag co-occurrence graph), strongest pairs; loads sample posts on an empty graph |
+| Analyze | `#/` | `/api/graph/overview` — counts, top tags/authors, topic map (tag co-occurrence graph), strongest pairs; loads a sample dataset (`datasets/index.json`) through the API, skipping posts already there |
 | Search | `#/search?q=&tag=&author=` | `/api/search` — results with highlights, tag and author facets to narrow |
 | Write | `#/write` | `POST /api/posts`, then polls search, `/related` and `/api/notifications` to show each consumer catching up |
 | Post | `#/post/{id}` | `/api/posts/{id}`, `/related` — body, related posts with score, neighbourhood graph |
@@ -409,6 +409,20 @@ of the gateway pass through unchanged. Host port `WEB_PORT` (8081).
 | Author | `#/author/{name}` | `/api/posts?author=`, `/api/notifications` — posts, topics, notifications, author map |
 | Graph explorer | `#/graph?tag=\|post=\|author=` | click a node to expand it (tag → posts + co-tags, post → author + tags + related, author → posts + tags) |
 | Chat | `#/chat` | `POST /api/chat` (streamed) — thread with live answer, `[#id]` citations as links, sources panel with a graph of the sources, Stop, New chat; the conversation is kept for the browser session |
+
+### Sample data (`tools/seed.py`, `services/web/static/datasets/`)
+
+| Dataset | Posts | Authors | Tags | Content |
+|---|---|---|---|---|
+| `general` | 24 | 6 | 15 | RAG, Kafka, knowledge graphs, Postgres, security, observability |
+| `bank` | 100 | 10 | 35 | loans, credit risk (PD, LGD, EAD, provisioning), mortgages, cards and credit scores, debit and accounts, payments, fraud, compliance (KYC, AML, sanctions), treasury (rates, liquidity, capital), financial education |
+
+`./app.sh seed <dataset|path.json>` / `make seed d=<dataset>` runs the `seed` container (tools profile): it validates
+the file with the rules of `POST /api/posts`, lists each author's existing posts, posts only the missing ones
+(idempotent) and waits until the last one is in the graph. The portal's loader does the same in the browser.
+`index.json` lists the datasets with a `marker` tag and suggested `questions`; Chat offers the questions of the
+datasets whose marker tag is in the graph. CI seeds `bank` twice (100, then 0 created) and checks that Chat
+retrieves the right banking post.
 
 ## 6.11 Database (`db/migrations`)
 

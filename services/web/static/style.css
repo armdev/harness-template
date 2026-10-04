@@ -123,3 +123,5 @@ button.link { background: none; border: none; padding: 0; color: var(--accent); 
   nav a { padding: 6px 8px; }
   main { padding: 16px; }
 }
+.datasets { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 0; }
+.dataset { margin: 0; } .dataset .m { color: var(--muted); font-size: 13px; }

@@ -58,7 +58,16 @@ gateway. **Analyze** shows the knowledge graph at a glance (counts, top tags and
 share posts); **Search** finds posts by their words with tag and author facets; **Graph** is an explorer you grow
 by clicking nodes (tag → posts, post → author, tags and related posts, author → posts); **Write** publishes a post
 and shows search, graph and notify picking it up. Every post, tag and author has its own page. An empty graph
-offers 24 sample posts to start with.
+offers two sample datasets to start with (also `+ sample data` on Analyze).
+
+**Sample data.** `./app.sh seed bank` (or `make seed d=bank`) loads **100 banking posts** by 10 authors: loans,
+credit and credit scores, debit and accounts, mortgages, cards, payments, fraud, compliance (KYC, AML) and treasury,
+linked by 35 tags into one knowledge graph; `./app.sh seed general` loads 24 engineering posts. Seeding goes through
+the public API, so search, the graph, notify and Chat all see the posts, and it is safe to repeat (posts already
+there are skipped). Datasets are JSON files in `services/web/static/datasets/`; add your own and seed it by name or
+path.
+
+![rag-web: banking dataset](docs/assets/bank-analyze.png)
 
 ![rag-web: analyze](docs/assets/web-analyze.png)
 

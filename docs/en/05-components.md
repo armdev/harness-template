@@ -96,7 +96,7 @@ skills (`harness-report`, `harness-steer`), which `harness-coverage` reports hon
 | Contract suite | `contract/` | specification of the public API and of the auth boundary (32 tests) |
 | Unit tests | `libs/common/tests/` | signing, verification, spoofing, tampering, skew, keygen idempotence |
 | Eval | `eval/` | corpus + queries, `run_eval.py`, `baseline.json` |
-| Tools image | `tools/Dockerfile` | pytest, httpx, PyYAML, `libs/common` for contract, unit and eval containers |
+| Tools image | `tools/Dockerfile`, `tools/seed.py` | pytest, httpx, PyYAML, `libs/common` for contract, unit, eval and seed containers; `seed.py` loads a sample dataset through the API (idempotent) |
 | Observability | `infra/prometheus/` | scrape jobs and up / error-rate / latency alerts per service |
 
 ## 5.5 Wiring

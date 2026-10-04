@@ -7,7 +7,7 @@ export HARNESS_GID := $(shell id -g)
 COMPOSE := docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up up-observability down ps logs build test contract eval llm clean purge adoption-test
+.PHONY: help up up-observability down ps logs build test contract seed eval llm clean purge adoption-test
 
 help:                    ## list targets
 	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-22s %s\n", $$1, $$2}'
@@ -36,6 +36,9 @@ test:                    ## unit tests (no network)
 
 contract:                ## contract suite against the running stack (the specification)
 	$(COMPOSE) --profile tools run --rm --build contract
+
+seed:                    ## load sample posts through the API (stack up): make seed d=bank  (general | bank)
+	$(COMPOSE) --profile tools run --rm --build seed $(or $(d),general)
 
 eval:                    ## search quality against eval/baseline.json; report in .harness/eval-report.md
 	@mkdir -p .harness

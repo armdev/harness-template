@@ -1,0 +1,1082 @@
+[
+ {
+  "author": "maria-lending",
+  "title": "How a personal loan works",
+  "body": "A personal loan pays out a fixed amount once and is repaid in equal monthly instalments over a fixed term. Most are unsecured, so the lender prices the risk through the interest rate and decides from the borrower's income, existing debt and credit history.",
+  "tags": [
+   "loans",
+   "consumer",
+   "interest",
+   "credit"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Secured versus unsecured loans",
+  "body": "A secured loan is backed by collateral the lender can claim if the borrower stops paying, such as a car or a home. Because the lender's loss is smaller, secured loans usually carry lower rates and allow larger amounts than unsecured ones.",
+  "tags": [
+   "loans",
+   "collateral",
+   "risk",
+   "interest"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Interest rate versus APR",
+  "body": "The nominal interest rate only covers the cost of borrowing the principal. The annual percentage rate (APR) adds mandatory fees such as origination charges, so APR is the figure to compare when choosing between two loans.",
+  "tags": [
+   "loans",
+   "interest",
+   "fees",
+   "consumer"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Amortization schedules explained",
+  "body": "With an amortizing loan every payment is the same, but its split changes: early payments are mostly interest, later ones mostly principal. An amortization schedule lists, payment by payment, how much goes to each and what balance remains.",
+  "tags": [
+   "loans",
+   "interest",
+   "mortgage",
+   "budgeting"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Debt-to-income ratio",
+  "body": "Lenders divide a borrower's monthly debt payments by gross monthly income to get the debt-to-income ratio (DTI). A lower DTI shows room in the budget for a new payment; many lenders set a maximum as part of underwriting.",
+  "tags": [
+   "loans",
+   "underwriting",
+   "credit",
+   "budgeting"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Origination fees and how to spot them",
+  "body": "An origination fee is charged for processing a loan, often as a percentage of the amount and sometimes deducted from the payout. It raises the APR, so a loan with a lower rate but a high fee can cost more overall.",
+  "tags": [
+   "loans",
+   "fees",
+   "consumer"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Prepaying a loan early",
+  "body": "Paying extra toward principal shortens the term and reduces total interest. Some contracts include a prepayment penalty that compensates the lender for lost interest, so check the terms before paying a loan off ahead of schedule.",
+  "tags": [
+   "loans",
+   "interest",
+   "fees",
+   "refinancing"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "When refinancing makes sense",
+  "body": "Refinancing replaces an existing loan with a new one, typically to get a lower rate, a different term or to switch from variable to fixed. It pays off only if the savings exceed the new loan's fees within the time you expect to keep it.",
+  "tags": [
+   "refinancing",
+   "loans",
+   "interest",
+   "mortgage"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Auto loans and depreciation",
+  "body": "An auto loan is secured by the vehicle, which loses value quickly. A large down payment and a shorter term reduce the risk of owing more than the car is worth if it is sold or written off.",
+  "tags": [
+   "loans",
+   "collateral",
+   "consumer"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Business term loans",
+  "body": "A term loan funds a specific investment such as equipment or expansion and is repaid on a fixed schedule. Lenders look at the company's cash flow, financial statements and often require collateral or a personal guarantee from the owners.",
+  "tags": [
+   "loans",
+   "business",
+   "underwriting",
+   "collateral"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Revolving lines of credit for businesses",
+  "body": "A business line of credit lets a company draw, repay and draw again up to a limit, paying interest only on what is used. It smooths seasonal gaps in cash flow better than a term loan, which pays out once.",
+  "tags": [
+   "credit",
+   "business",
+   "liquidity",
+   "loans"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Balloon payments",
+  "body": "A balloon loan has small regular payments and a large final payment of the remaining principal. It keeps instalments low but creates refinancing risk if the borrower cannot pay or refinance the balloon when it falls due.",
+  "tags": [
+   "loans",
+   "refinancing",
+   "risk"
+  ]
+ },
+ {
+  "author": "maria-lending",
+  "title": "Loan covenants",
+  "body": "Covenants are promises in a business loan agreement, such as keeping a minimum interest coverage ratio or not taking on more debt. Breaching one can let the lender demand early repayment or renegotiate terms.",
+  "tags": [
+   "loans",
+   "business",
+   "risk",
+   "underwriting"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Probability of default (PD)",
+  "body": "PD is the likelihood that a borrower fails to meet obligations within a horizon, usually one year. Banks estimate it from internal ratings or scorecards built on historical defaults.",
+  "tags": [
+   "risk",
+   "default",
+   "credit",
+   "capital"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Loss given default (LGD)",
+  "body": "LGD is the share of an exposure the bank loses if the borrower defaults, after recoveries from collateral and collections. Well-secured loans have low LGD; unsecured consumer debt has high LGD.",
+  "tags": [
+   "risk",
+   "default",
+   "collateral",
+   "credit"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Exposure at default (EAD)",
+  "body": "EAD is the amount owed when default happens. For a term loan it is close to the outstanding balance; for credit cards and lines of credit it also includes part of the unused limit that borrowers tend to draw before defaulting.",
+  "tags": [
+   "risk",
+   "default",
+   "credit-card",
+   "credit"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Expected loss = PD × LGD × EAD",
+  "body": "Multiplying the three parameters gives the expected loss of an exposure. Banks price this into interest rates and set provisions against it, while capital covers unexpected losses beyond it.",
+  "tags": [
+   "risk",
+   "provisioning",
+   "capital",
+   "default"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Credit scorecards",
+  "body": "A scorecard turns application data and credit bureau information into points that rank applicants by risk. Lenders choose a cut-off score to approve, refer or decline, trading approval rate against expected defaults.",
+  "tags": [
+   "credit-score",
+   "underwriting",
+   "risk",
+   "credit"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Delinquency buckets",
+  "body": "Banks track overdue loans by days past due: 30, 60, 90 and beyond. Movement between buckets ('roll rates') is an early warning signal; 90 days past due is a common definition of default.",
+  "tags": [
+   "default",
+   "risk",
+   "loans",
+   "collections"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Charge-offs",
+  "body": "When a loan is judged uncollectable the bank charges it off, removing it from the balance sheet against the loss allowance. The debt can still be pursued by collections or sold, and recoveries reduce the final loss.",
+  "tags": [
+   "default",
+   "provisioning",
+   "collections",
+   "risk"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Loan restructuring for borrowers in difficulty",
+  "body": "Restructuring changes the terms of a loan, for example extending the term or temporarily reducing payments, to help a struggling borrower avoid default. Regulators require banks to flag these forborne loans and monitor them closely.",
+  "tags": [
+   "loans",
+   "default",
+   "regulation",
+   "collections"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "IFRS 9 expected credit loss",
+  "body": "Under IFRS 9 banks provision for expected losses from day one: 12-month expected loss for performing loans and lifetime expected loss once credit risk has increased significantly or the loan is impaired.",
+  "tags": [
+   "provisioning",
+   "regulation",
+   "risk",
+   "default"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "CECL in the United States",
+  "body": "The CECL standard requires US lenders to provision for lifetime expected credit losses when a loan is originated, using history, current conditions and reasonable forecasts. It brought provisions forward compared with the earlier incurred-loss model.",
+  "tags": [
+   "provisioning",
+   "regulation",
+   "risk"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Concentration risk",
+  "body": "A loan book concentrated in one industry, region or large borrower can suffer correlated losses. Banks set limits by sector and counterparty and hold extra capital where concentration remains.",
+  "tags": [
+   "risk",
+   "capital",
+   "business"
+  ]
+ },
+ {
+  "author": "tom-credit-risk",
+  "title": "Stress testing a loan portfolio",
+  "body": "A stress test projects defaults and losses under a severe but plausible scenario, such as a recession with rising unemployment and falling house prices. The results show whether capital would stay above regulatory minimums.",
+  "tags": [
+   "risk",
+   "capital",
+   "regulation",
+   "rates"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Fixed-rate mortgages",
+  "body": "A fixed-rate mortgage keeps the same interest rate for the whole term or a long initial period, so payments are predictable. The borrower pays for that certainty with a rate that is often higher than an introductory variable rate.",
+  "tags": [
+   "mortgage",
+   "interest",
+   "rates",
+   "loans"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Adjustable-rate mortgages",
+  "body": "An adjustable-rate mortgage (ARM) starts with a fixed period and then resets periodically to a benchmark rate plus a margin. Caps limit how much the rate can rise per reset and over the loan's life.",
+  "tags": [
+   "mortgage",
+   "rates",
+   "interest",
+   "risk"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Loan-to-value ratio",
+  "body": "LTV divides the mortgage amount by the property's value. A lower LTV means more equity and less risk for the lender, which is why rates improve and mortgage insurance falls away as LTV drops.",
+  "tags": [
+   "mortgage",
+   "collateral",
+   "underwriting",
+   "risk"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Down payments",
+  "body": "The down payment is the part of the price paid upfront. A larger one lowers the loan amount, the LTV and often the rate, and can avoid the cost of private mortgage insurance.",
+  "tags": [
+   "mortgage",
+   "savings",
+   "budgeting"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Mortgage points",
+  "body": "Discount points are prepaid interest: paying a percentage of the loan at closing to get a lower rate. They pay off only if you keep the mortgage long enough for the monthly savings to exceed the upfront cost.",
+  "tags": [
+   "mortgage",
+   "interest",
+   "fees"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Escrow accounts for taxes and insurance",
+  "body": "Many lenders collect property tax and homeowner's insurance with each mortgage payment and hold it in escrow, paying the bills when due. This protects the collateral and spreads large annual costs over the year.",
+  "tags": [
+   "mortgage",
+   "collateral",
+   "budgeting"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Mortgage underwriting",
+  "body": "Underwriters verify income, employment, assets, the credit report and the property appraisal before approving a mortgage. Debt-to-income, loan-to-value and credit score together decide approval and pricing.",
+  "tags": [
+   "mortgage",
+   "underwriting",
+   "credit-score",
+   "collateral"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Home equity lines of credit",
+  "body": "A HELOC is a revolving line secured by the home's equity, usually with a variable rate. It offers flexible access to funds, but missed payments put the home at risk because it is the collateral.",
+  "tags": [
+   "mortgage",
+   "credit",
+   "collateral",
+   "rates"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Refinancing a mortgage",
+  "body": "Homeowners refinance to capture a lower rate, change the term or take cash out. Closing costs can be significant, so compare the break-even point with how long you plan to stay in the home.",
+  "tags": [
+   "refinancing",
+   "mortgage",
+   "fees",
+   "rates"
+  ]
+ },
+ {
+  "author": "sam-mortgages",
+  "title": "Foreclosure as a last resort",
+  "body": "If mortgage payments stop, the lender can eventually take and sell the property to recover the debt. Before that, banks usually offer options such as forbearance or a modification, which cost both sides less.",
+  "tags": [
+   "mortgage",
+   "default",
+   "collateral",
+   "collections"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "What makes up a credit score",
+  "body": "Common scoring models weigh payment history most, then the amounts owed relative to limits, the length of credit history, the mix of credit types and recent applications. Paying on time every month matters more than anything else.",
+  "tags": [
+   "credit-score",
+   "credit",
+   "consumer"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Credit utilization",
+  "body": "Utilization is the share of available revolving credit you are using. Keeping balances well below limits, for example under 30 percent, tends to support a better score than running cards close to the limit.",
+  "tags": [
+   "credit-score",
+   "credit-card",
+   "credit"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Hard and soft inquiries",
+  "body": "A hard inquiry happens when you apply for credit and can lower a score slightly for a while. Soft inquiries, such as checking your own report or pre-approval offers, do not affect the score.",
+  "tags": [
+   "credit-score",
+   "credit",
+   "consumer"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Reading your credit report",
+  "body": "A credit report lists accounts, balances, payment history and inquiries held by a credit bureau. Check it regularly and dispute errors, because lenders and scores rely on it.",
+  "tags": [
+   "credit-score",
+   "credit",
+   "consumer",
+   "security"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "How credit card interest works",
+  "body": "Card interest is charged on balances carried past the due date, usually calculated daily from the APR. Paying the full statement balance each month avoids interest on purchases entirely.",
+  "tags": [
+   "credit-card",
+   "interest",
+   "credit",
+   "budgeting"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "The grace period on purchases",
+  "body": "The grace period is the time between the statement date and the due date during which purchases accrue no interest if the previous balance was paid in full. Carrying a balance usually removes the grace period on new purchases.",
+  "tags": [
+   "credit-card",
+   "interest",
+   "credit"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Minimum payments",
+  "body": "The minimum payment keeps an account current but mostly covers interest. Paying only the minimum on a large balance can take years and cost far more than the original purchases.",
+  "tags": [
+   "credit-card",
+   "interest",
+   "budgeting",
+   "default"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Revolving versus instalment credit",
+  "body": "Revolving credit, like a card, has a limit you can reuse; instalment credit, like a car loan, pays out once and is repaid on a schedule. Scoring models consider having both types responsibly as a positive.",
+  "tags": [
+   "credit",
+   "credit-card",
+   "loans",
+   "credit-score"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Secured credit cards",
+  "body": "A secured card is backed by a cash deposit that usually becomes the credit limit. It helps people with no or damaged credit history build a record of on-time payments.",
+  "tags": [
+   "credit-card",
+   "credit-score",
+   "collateral",
+   "consumer"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Credit builder loans",
+  "body": "With a credit builder loan the bank holds the borrowed amount in a savings account while the borrower makes payments; the money is released at the end. The on-time payments are reported to the bureaus.",
+  "tags": [
+   "loans",
+   "credit-score",
+   "savings",
+   "consumer"
+  ]
+ },
+ {
+  "author": "ben-cards",
+  "title": "Balance transfers",
+  "body": "A balance transfer moves card debt to a new card, often at a low introductory rate. A transfer fee applies, and the remaining balance reverts to the regular APR when the promotion ends.",
+  "tags": [
+   "credit-card",
+   "refinancing",
+   "fees",
+   "interest"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Debit cards versus credit cards",
+  "body": "A debit card spends money already in your account; a credit card borrows from the issuer and bills you later. Debit avoids debt and interest, while credit cards build credit history and offer stronger dispute protections in many countries.",
+  "tags": [
+   "debit",
+   "credit-card",
+   "cards",
+   "consumer"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "How a checking account works",
+  "body": "A checking (current) account holds money for everyday payments: card purchases, transfers, direct debits and cash withdrawals. It pays little or no interest because the balance is meant to be spent.",
+  "tags": [
+   "deposits",
+   "debit",
+   "payments",
+   "consumer"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Overdrafts",
+  "body": "An overdraft lets the account go below zero up to an agreed limit. It is a short-term loan with fees or interest, useful for emergencies but expensive as a regular habit.",
+  "tags": [
+   "overdraft",
+   "debit",
+   "fees",
+   "credit"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Insufficient funds and returned payments",
+  "body": "If a payment is presented without enough money and no overdraft, the bank may return it unpaid and charge a fee. Low-balance alerts and a buffer in the account prevent most of these charges.",
+  "tags": [
+   "overdraft",
+   "fees",
+   "debit",
+   "payments"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "PIN and signature debit",
+  "body": "A PIN debit transaction is authorised with the card's PIN and usually settles directly against the account; signature or contactless debit runs over the card network like a credit transaction. Both draw on the same balance.",
+  "tags": [
+   "debit",
+   "cards",
+   "payments",
+   "security"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "ATM withdrawals and fees",
+  "body": "Withdrawing from your own bank's ATMs is usually free; other operators may charge a fee, and your bank may add its own. Daily withdrawal limits protect the account if the card is stolen.",
+  "tags": [
+   "debit",
+   "fees",
+   "cards",
+   "security"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Savings accounts and APY",
+  "body": "A savings account pays interest on deposits. The annual percentage yield (APY) includes compounding, so it is the right number to compare between accounts.",
+  "tags": [
+   "savings",
+   "deposits",
+   "interest"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Compound interest",
+  "body": "Compounding means interest earns interest. The more often it is credited and the longer money stays invested, the faster the balance grows, which is why starting to save early matters.",
+  "tags": [
+   "savings",
+   "interest",
+   "budgeting"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Certificates of deposit",
+  "body": "A certificate of deposit (term deposit) pays a fixed rate for locking money away for a set period. Withdrawing early usually costs a penalty, so match the term to when you will need the cash.",
+  "tags": [
+   "savings",
+   "deposits",
+   "rates",
+   "interest"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Deposit insurance",
+  "body": "Deposit insurance schemes protect depositors up to a limit per bank if the bank fails. Knowing the limit matters for large balances, which can be spread across several insured banks.",
+  "tags": [
+   "deposits",
+   "regulation",
+   "savings",
+   "risk"
+  ]
+ },
+ {
+  "author": "raj-retail",
+  "title": "Building an emergency fund",
+  "body": "An emergency fund covers several months of essential expenses in an easily accessible savings account. It keeps unexpected costs from turning into card debt or overdraft fees.",
+  "tags": [
+   "savings",
+   "budgeting",
+   "overdraft",
+   "consumer"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Card networks and the four-party model",
+  "body": "A card payment involves the cardholder, the issuing bank, the merchant and the merchant's acquiring bank, connected by a card network. The network routes authorisations and settles funds between issuer and acquirer.",
+  "tags": [
+   "payments",
+   "cards",
+   "debit",
+   "credit-card"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Authorisation, clearing and settlement",
+  "body": "At the till the issuer authorises the payment and places a hold; later the transaction is cleared and settled between banks. That is why a purchase can show as pending before it posts.",
+  "tags": [
+   "payments",
+   "cards",
+   "debit"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Interchange fees",
+  "body": "Interchange is the fee the acquirer pays the issuer on each card transaction, set by the networks or capped by regulation in some regions. It is the largest part of what merchants pay to accept cards.",
+  "tags": [
+   "payments",
+   "fees",
+   "cards",
+   "regulation"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Chargebacks",
+  "body": "A chargeback reverses a card payment after the cardholder disputes it with the issuer, for example for fraud or goods not received. The merchant can contest it with evidence; frequent chargebacks raise its costs.",
+  "tags": [
+   "payments",
+   "cards",
+   "fraud",
+   "consumer"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Direct debits",
+  "body": "A direct debit authorises a company to collect variable amounts from your account, such as utility bills. Schemes like SEPA Direct Debit give the payer the right to refund within a set period.",
+  "tags": [
+   "debit",
+   "payments",
+   "transfers",
+   "consumer"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "ACH transfers",
+  "body": "ACH is the US batch network for direct deposits, bill payments and transfers between banks. It is cheap and reliable, and same-day ACH has shortened what used to take one or two business days.",
+  "tags": [
+   "transfers",
+   "payments",
+   "debit"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Wire transfers and SWIFT",
+  "body": "A wire moves money between banks individually and quickly, domestically or cross-border. International wires use SWIFT messages, may pass through correspondent banks and are hard to reverse once sent.",
+  "tags": [
+   "transfers",
+   "payments",
+   "fraud",
+   "compliance"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Instant payments",
+  "body": "Instant payment schemes such as SEPA Instant, FedNow and many national systems settle account-to-account transfers in seconds, around the clock. Speed helps customers but also gives fraudsters less time to be stopped.",
+  "tags": [
+   "transfers",
+   "payments",
+   "fraud",
+   "liquidity"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Card tokenization",
+  "body": "Tokenization replaces the card number with a token tied to one device or merchant. Mobile wallets and stored cards use tokens, so a breached merchant database does not expose real card numbers.",
+  "tags": [
+   "cards",
+   "security",
+   "payments",
+   "fraud"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Open banking APIs",
+  "body": "Open banking lets customers authorise licensed third parties to read account data or initiate payments through bank APIs. It enables budgeting apps and account-to-account payments without sharing passwords.",
+  "tags": [
+   "open-banking",
+   "payments",
+   "security",
+   "regulation"
+  ]
+ },
+ {
+  "author": "aisha-payments",
+  "title": "Strong customer authentication",
+  "body": "Strong customer authentication requires two of: something you know, something you have and something you are. European rules require it for most online payments, using protocols such as 3-D Secure for cards.",
+  "tags": [
+   "security",
+   "regulation",
+   "fraud",
+   "open-banking"
+  ]
+ },
+ {
+  "author": "nina-fraud",
+  "title": "Card-not-present fraud",
+  "body": "When stolen card details are used online, the card is not present to check. Merchants and issuers counter it with 3-D Secure, device fingerprinting, address checks and risk scoring of each transaction.",
+  "tags": [
+   "fraud",
+   "cards",
+   "security",
+   "payments"
+  ]
+ },
+ {
+  "author": "nina-fraud",
+  "title": "Account takeover",
+  "body": "In an account takeover, a criminal gains access to a customer's online banking, often through phishing or reused passwords. Unusual logins, new devices and changed contact details are key warning signs.",
+  "tags": [
+   "fraud",
+   "security",
+   "open-banking"
+  ]
+ },
+ {
+  "author": "nina-fraud",
+  "title": "Authorised push payment scams",
+  "body": "In an APP scam the customer is tricked into sending money themselves, for example to a fake 'safe account'. Because the customer authorised it, prevention relies on warnings, confirmation of payee and delays on risky transfers.",
+  "tags": [
+   "fraud",
+   "transfers",
+   "security",
+   "consumer"
+  ]
+ },
+ {
+  "author": "nina-fraud",
+  "title": "Transaction monitoring with risk scores",
+  "body": "Fraud systems score each transaction in real time from features such as amount, merchant, location and device, combining rules and machine-learning models. High scores trigger a decline, a step-up check or a review.",
+  "tags": [
+   "fraud",
+   "risk",
+   "payments",
+   "aml"
+  ]
+ },
+ {
+  "author": "nina-fraud",
+  "title": "Phishing and social engineering",
+  "body": "Most fraud starts with persuasion, not hacking: a call, text or email pretending to be the bank. Banks never ask for full PINs or passwords, and customers should call back on the number printed on their card.",
+  "tags": [
+   "fraud",
+   "security",
+   "consumer"
+  ]
+ },
+ {
+  "author": "nina-fraud",
+  "title": "Synthetic identity fraud",
+  "body": "Synthetic identities combine real and invented data to create a person who does not exist, who then builds credit before 'busting out' with maxed-out cards and loans. Strong identity verification at onboarding is the main defence.",
+  "tags": [
+   "fraud",
+   "kyc",
+   "credit",
+   "default"
+  ]
+ },
+ {
+  "author": "nina-fraud",
+  "title": "Money mules",
+  "body": "Money mules move stolen funds through their own accounts, sometimes unknowingly through fake job offers. Spotting mule accounts links fraud prevention with anti-money-laundering monitoring.",
+  "tags": [
+   "fraud",
+   "aml",
+   "transfers"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Know your customer (KYC)",
+  "body": "KYC means verifying a customer's identity and understanding the purpose of the relationship when an account is opened, and keeping that information current. It is the foundation of fighting fraud and money laundering.",
+  "tags": [
+   "kyc",
+   "compliance",
+   "aml",
+   "regulation"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Customer due diligence and enhanced due diligence",
+  "body": "Standard due diligence applies to most customers; higher-risk ones, such as politically exposed persons or complex structures, get enhanced due diligence with more evidence and senior approval.",
+  "tags": [
+   "kyc",
+   "aml",
+   "compliance",
+   "risk"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Anti-money laundering basics",
+  "body": "Money laundering disguises criminal proceeds through placement, layering and integration. Banks fight it with KYC, transaction monitoring, record keeping and reporting suspicious activity to authorities.",
+  "tags": [
+   "aml",
+   "compliance",
+   "regulation",
+   "transfers"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Suspicious activity reports",
+  "body": "When staff or monitoring systems find activity that may involve laundering or fraud, the bank files a suspicious activity report with the financial intelligence unit. Tipping off the customer is prohibited.",
+  "tags": [
+   "aml",
+   "compliance",
+   "regulation",
+   "fraud"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Sanctions screening",
+  "body": "Banks screen customers and payments against sanctions lists and must block or freeze matches. Fuzzy name matching produces many false positives, which analysts clear with additional data such as date of birth.",
+  "tags": [
+   "compliance",
+   "aml",
+   "transfers",
+   "regulation"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Beneficial ownership",
+  "body": "For company accounts, banks identify the natural persons who ultimately own or control the business. Hidden ownership through shell companies is a classic laundering technique.",
+  "tags": [
+   "kyc",
+   "aml",
+   "business",
+   "compliance"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Data protection in banking",
+  "body": "Banks process sensitive personal and financial data and must limit collection, secure storage and access, and honour customer rights under laws such as GDPR. Open banking adds explicit consent for sharing data.",
+  "tags": [
+   "compliance",
+   "security",
+   "regulation",
+   "open-banking"
+  ]
+ },
+ {
+  "author": "li-compliance",
+  "title": "Fair lending and affordability",
+  "body": "Lending rules require banks to assess whether a borrower can afford a loan and to avoid discrimination in approvals and pricing. Models used in credit decisions must be explainable and monitored for bias.",
+  "tags": [
+   "regulation",
+   "underwriting",
+   "loans",
+   "compliance"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Net interest margin",
+  "body": "Net interest margin is the difference between what a bank earns on loans and investments and what it pays on deposits and borrowing, relative to earning assets. It is the core of a traditional bank's profit.",
+  "tags": [
+   "treasury",
+   "interest",
+   "rates",
+   "deposits"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "How central bank rates reach customers",
+  "body": "When the central bank changes its policy rate, interbank and market rates follow, and banks reprice variable-rate loans and, more slowly, deposit rates. Fixed-rate loans are affected only when they are renewed or refinanced.",
+  "tags": [
+   "rates",
+   "treasury",
+   "interest",
+   "mortgage"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Interest rate risk in the banking book",
+  "body": "If assets and liabilities reprice at different times, changing rates move a bank's earnings and economic value. Treasury measures the gap and hedges it, for example with interest rate swaps.",
+  "tags": [
+   "treasury",
+   "rates",
+   "risk",
+   "capital"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Asset-liability management",
+  "body": "ALM coordinates the bank's balance sheet: the maturities of loans and funding, interest rate exposure and liquidity. Decisions are taken by an ALCO committee within limits set by the board.",
+  "tags": [
+   "treasury",
+   "liquidity",
+   "rates",
+   "risk"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Liquidity coverage ratio",
+  "body": "The LCR requires banks to hold enough high-quality liquid assets to cover estimated net cash outflows over a 30-day stress period. It protects against sudden deposit withdrawals.",
+  "tags": [
+   "liquidity",
+   "regulation",
+   "treasury",
+   "deposits"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Net stable funding ratio",
+  "body": "The NSFR requires long-term assets such as mortgages to be funded with stable sources such as long-term debt and sticky deposits, limiting reliance on short-term wholesale funding.",
+  "tags": [
+   "liquidity",
+   "regulation",
+   "treasury",
+   "capital"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Capital adequacy",
+  "body": "Regulators require banks to hold capital, mainly common equity, against risk-weighted assets so losses can be absorbed without failing. Riskier loans carry higher risk weights and need more capital.",
+  "tags": [
+   "capital",
+   "regulation",
+   "risk",
+   "treasury"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Deposits as a funding source",
+  "body": "Retail deposits are usually the cheapest and most stable funding for a bank, especially when insured. Banks still model how quickly different deposit types could leave in stress.",
+  "tags": [
+   "deposits",
+   "liquidity",
+   "treasury",
+   "savings"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "The yield curve and lending",
+  "body": "The yield curve plots interest rates by maturity. Banks borrow short and lend long, so a steep curve helps margins while an inverted one squeezes them and often signals slower growth.",
+  "tags": [
+   "rates",
+   "treasury",
+   "interest",
+   "loans"
+  ]
+ },
+ {
+  "author": "olga-treasury",
+  "title": "Interbank lending",
+  "body": "Banks lend each other reserves overnight and for short terms to manage daily liquidity. Benchmark rates such as SOFR and €STR are derived from these money markets and feed into loan pricing.",
+  "tags": [
+   "liquidity",
+   "rates",
+   "treasury",
+   "transfers"
+  ]
+ },
+ {
+  "author": "eva-education",
+  "title": "Building a monthly budget",
+  "body": "List income after tax, then fixed costs, debt payments and savings, and only then flexible spending. A budget that pays yourself first makes saving automatic rather than whatever is left over.",
+  "tags": [
+   "budgeting",
+   "savings",
+   "consumer"
+  ]
+ },
+ {
+  "author": "eva-education",
+  "title": "Paying off debt: avalanche or snowball",
+  "body": "The avalanche method pays the highest-interest debt first and saves the most money; the snowball method clears the smallest balance first for quick wins. Either works if extra payments continue.",
+  "tags": [
+   "budgeting",
+   "credit-card",
+   "loans",
+   "interest"
+  ]
+ },
+ {
+  "author": "eva-education",
+  "title": "Good debt and bad debt",
+  "body": "Borrowing that builds lasting value at a reasonable cost, such as an affordable mortgage or education, differs from high-interest debt for consumption. The rate, the purpose and the ability to repay decide which it is.",
+  "tags": [
+   "loans",
+   "credit",
+   "budgeting",
+   "consumer"
+  ]
+ },
+ {
+  "author": "eva-education",
+  "title": "How to compare loan offers",
+  "body": "Compare the APR, the total amount repayable, the term, fees and flexibility such as penalty-free overpayments. The lowest monthly payment is often the most expensive loan overall.",
+  "tags": [
+   "loans",
+   "interest",
+   "fees",
+   "consumer"
+  ]
+ },
+ {
+  "author": "eva-education",
+  "title": "Improving a low credit score",
+  "body": "Pay every bill on time, reduce card balances, avoid many applications at once and keep old accounts open. Scores recover gradually as negative entries age.",
+  "tags": [
+   "credit-score",
+   "credit-card",
+   "budgeting",
+   "credit"
+  ]
+ },
+ {
+  "author": "eva-education",
+  "title": "Protecting yourself from banking scams",
+  "body": "Treat urgency as a red flag, never move money to a 'safe account', and verify requests through the official app or phone number. Report suspected fraud to the bank immediately; speed improves the chance of recovery.",
+  "tags": [
+   "fraud",
+   "security",
+   "consumer",
+   "transfers"
+  ]
+ },
+ {
+  "author": "eva-education",
+  "title": "Choosing the right bank account",
+  "body": "Look at monthly fees, overdraft terms, ATM access, interest on balances, the quality of the app and deposit insurance. Many people use one account for bills and another for savings.",
+  "tags": [
+   "deposits",
+   "fees",
+   "savings",
+   "consumer"
+  ]
+ }
+]
