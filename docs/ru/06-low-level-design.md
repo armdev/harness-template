@@ -223,7 +223,7 @@ flowchart TD
 
 ## 6.8 Подписанные межсервисные вызовы (`libs/common/common/service_auth.py`)
 
-**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search notify graph web` от root: для каждого
+**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search notify graph web chat` от root: для каждого
 сервиса `/keys/<name>/private.pem` (PKCS#8 Ed25519, права 0400, владелец uid 10001, каталог 0500) и
 `/keys/public/<name>.pem` (0444). Идемпотентно: существующие ключи сохраняются. Каждый сервис монтирует
 `subpath: <name>` в `/run/keys/self` и `subpath: public` в `/run/keys/public`, только на чтение.
@@ -294,6 +294,7 @@ asynchronous=False)` · не JSON или обработчик бросил `Valu
 | GET | `/api/tags/{tag}` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (10) | graph `GET /tags/{tag}` | 200 `{tag, posts, related[{tag, together}]}` · 404 · 422 · 502 |
 | GET | `/api/tags/{tag}/posts` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (20) | graph `GET /tags/{tag}/posts` | 200 `{tag, posts[{id, title, author}]}` (newest first) · 404 · 422 · 502 |
 | GET | `/api/graph/overview` | `limit` 1–50 (10) | graph `GET /overview` | 200 `{posts, authors, tags, top_tags[{tag, posts}], top_authors[{author, posts}], tag_links[{source, target, together}]}` · 422 · 502 |
+| POST | `/api/chat` | `{messages[{role, content}], k}` | chat `POST /chat` (поток через `common.relay`) | 200 `text/event-stream`: `sources`, `token`…, `done` · 422 · 502 |
 
 ### content
 
@@ -366,6 +367,35 @@ flowchart LR
   `top_authors` по числу постов; `tag_links` — пары среди топ-тегов, `together` — число постов с обоими
   (`source < target`, порядок `together DESC`). Питает страницу «Анализ» и карту тем портала.
 
+### chat
+
+`services/chat/app.py` (эндпоинт, выборка, стриминг) и `rag.py` (чистые шаги конвейера). `POST /chat`
+`{messages: [{role: user|assistant, content ≤ 4000}] (1–20, последнее — user), k: 1–10 (5)}` → `text/event-stream`.
+
+```mermaid
+flowchart LR
+    q[вопрос] --> kw[ключевые слова<br/>без стоп-слов; короткий уточняющий<br/>вопрос берёт слова предыдущего]
+    kw -->|"w1 or w2 or …"| s[search<br/>top k]
+    s -->|3 лучших| g[graph /related<br/>≤ 2 на пост, ≤ 3 всего]
+    s & g --> c[content<br/>полный текст]
+    c --> p[промпт: правила + пронумерованные посты<br/>+ последние 8 реплик]
+    p --> m[модель · common.llm<br/>OpenAI-совместимая, потоком]
+    m --> f[ThinkFilter<br/>убирает &lt;think&gt;] --> out[события token<br/>done: ссылки]
+```
+
+| Событие | Данные |
+|---|---|
+| `sources` (первое, одно) | `[{id, title, author, tags, via: search\|graph, near?, snippet}]` — что получила модель |
+| `token` | `{text}` — ответ по частям |
+| `done` (последнее) | `{citations: [id, процитированные как [#id] и входящие в источники], model: имя\|null}` |
+| `error` | `{detail}` — модель сломалась, уже начав отвечать |
+
+Ошибки выборки — HTTP-ошибки до начала потока (502). Без модели (`CHAT_LLM_URL` пуст, недоступен или вернул ошибку)
+ответ перечисляет найденные посты со ссылками, `model` = `null`; если подходящих постов нет — так и говорит. Клиент
+модели (`libs/common/common/llm.py`) — единственное место вызова модели: правило semgrep `unsigned-service-call`
+не пускает «сырой» HTTP в `services/`. Gateway и web передают поток через `common.relay` (части пересылаются по
+мере прихода, таймаут чтения 180 с). Контракт: `contract/test_chat.py` выполняется и с моделью, и без неё.
+
 ### web (rag-web)
 
 Портал: приложение FastAPI (`services/web/app.py`), которое отдаёт браузерный клиент без зависимостей
@@ -384,6 +414,7 @@ flowchart LR
 | Тег | `#/tag/{tag}` | `/api/tags/{tag}`, `/api/tags/{tag}/posts` — совместные теги, новые посты, авторы |
 | Автор | `#/author/{name}` | `/api/posts?author=`, `/api/notifications` — посты, темы, уведомления, карта автора |
 | Обозреватель графа | `#/graph?tag=\|post=\|author=` | клик по узлу раскрывает соседей (тег → посты и теги, пост → автор, теги и связанные, автор → посты и теги) |
+| Чат | `#/chat` | `POST /api/chat` (потоком) — диалог с ответом в реальном времени, ссылки `[#id]`, панель источников с их графом, «Стоп», «Новый чат»; диалог хранится на время сессии браузера |
 
 ## 6.11 База данных (`db/migrations`)
 
@@ -489,6 +520,7 @@ pull request и `HEAD~1` для push.
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | база данных |
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | роли сервисов |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | хранилище графа Neo4j |
+| `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | модель чата (любой OpenAI-совместимый эндпоинт; пустой URL — ответы только списком источников) |
 | `LOG_LEVEL` | `INFO` | сервисы |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | куча брокера |
 | `*_TAG` | закреплены | версии образов |

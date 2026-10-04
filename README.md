@@ -27,7 +27,7 @@ it back, finds it through search, and prints where everything is:
 
 ```
 Accessible URLs
-  Web portal (rag-web)       http://localhost:8081  analyze · search · graph · write
+  Web portal (rag-web)       http://localhost:8081  analyze · search · graph · chat · write
   Public API                 http://localhost:8080  (opens the docs)
   API docs (Swagger UI)      http://localhost:8080/docs
   API docs (ReDoc)           http://localhost:8080/redoc
@@ -62,12 +62,21 @@ offers 24 sample posts to start with.
 
 ![rag-web: analyze](docs/assets/web-analyze.png)
 
+**Chat** answers questions from the posts with a fixed RAG pipeline in the `chat` service: search finds the
+posts matching the question, the knowledge graph adds their closest neighbours, content supplies the full text,
+and a language model answers citing them as `[#id]`, streamed word by word (`POST /api/chat`, server-sent events).
+The model is any OpenAI-compatible endpoint: local Ollama by default (`./run.sh --llm` or `./app.sh up --llm`),
+or a hosted one via `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY`. Without a model, Chat still answers with the
+posts it found.
+
+![rag-web: chat](docs/assets/web-chat.png)
+
 ### Only the application, without the harness
 
 The RAG system runs on its own: no harness, console, make or python on the host, just Docker and curl.
 
 ```bash
-./app.sh                    # build + start web, gateway, content, search, notify, graph (+ postgres, kafka, neo4j), smoke test, URLs
+./app.sh                    # build + start web, gateway, content, search, notify, graph, chat (+ postgres, kafka, neo4j), smoke test, URLs
 ./app.sh test               # the API specification (contract suite) against it
 ./app.sh status · logs search · down
 ./app.sh export ../rag-app  # a standalone copy of the application, with no harness files: cd ../rag-app && ./app.sh
@@ -161,7 +170,7 @@ harness/
   tests/                      tests of the harness itself (make harness-test)
   CHANGELOG.md  HARNESS.md    releases with first-run impact · design, versioning, steering loop
 docker-compose.yml            the reference system's architecture (checked by the topology sensor)
-services/  libs/common/       web (rag-web portal) · gateway · content · search · notify · graph (Neo4j); signed calls, logging, metrics
+services/  libs/common/       web (rag-web portal) · gateway · content · search · notify · graph (Neo4j) · chat (RAG); signed calls, logging, metrics, model client
 db/migrations/  db/graph/     Flyway (PostgreSQL) · Cypher constraints (Neo4j, applied by graph-init)
 contract/  eval/  tools/      API specification · search-quality eval · test tooling image
 infra/prometheus/             scrape config and alert rules

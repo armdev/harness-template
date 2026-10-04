@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# The application alone: the RAG system (web, gateway, content, search, notify, graph + postgres, kafka, neo4j),
+# The application alone: the RAG system (web, gateway, content, search, notify, graph, chat + postgres, kafka, neo4j),
 # without the harness, the console or make. Needs only docker (compose v2) and curl.
 #
 #   ./app.sh [up]            build + start the application, wait until healthy, smoke-test it, print URLs
 #   ./app.sh up --observability   ... and Prometheus on :9090;  --no-build: start the images you already have
+#   ./app.sh up --llm        ... and a local model for Chat (Ollama; pulls CHAT_MODEL, several GB the first time)
 #   ./app.sh status          service status and URLs
 #   ./app.sh logs [service]  follow logs (all services, or one: ./app.sh logs search)
 #   ./app.sh test            the API specification (contract suite) against the running application
@@ -64,17 +65,23 @@ smoke() {
   [ $graphed = 1 ] && ok "post $id in the knowledge graph (tag $marker)" || { fail "post $id not in the graph after 20s: ./app.sh logs graph"; return 1; }
   curl -fsS "$WEB/api/posts/$id" | grep -q "\"id\":$id" && ok "web portal serves post $id through the gateway" \
     || { fail "the web portal does not reach the gateway: ./app.sh logs web"; return 1; }
+  local answer
+  answer=$(curl -fsS -N --max-time 200 "$WEB/api/chat" -H 'content-type: application/json' \
+           -d "{\"messages\":[{\"role\":\"user\",\"content\":\"What is $marker about?\"}]}")
+  grep -q "\"id\": $id" <<< "$answer" \
+    && ok "chat answers with post $id among its sources" || { fail "chat did not use post $id: ./app.sh logs chat"; return 1; }
 }
 
 urls() {
   printf '\n%sURLs%s\n' "$B" "$N"
-  printf '  %-24s %s%s%s\n' "Web portal (rag-web)" "$C" "$WEB" "$N  analyze · search · graph · write"
+  printf '  %-24s %s%s%s\n' "Web portal (rag-web)" "$C" "$WEB" "$N  analyze · search · graph · chat · write"
   printf '  %-24s %s%s%s\n' "API docs (Swagger UI)" "$C" "$API/docs" "$N"
   printf '  %-24s %s%s%s\n' "OpenAPI schema" "$C" "$API/openapi.json" "$N"
   printf '  %-24s %s\n' "  posts" "POST $API/api/posts · GET $API/api/posts/{id} · GET $API/api/posts?author="
   printf '  %-24s %s\n' "  search (RAG retrieval)" "GET  $API/api/search?q=kafka"
   printf '  %-24s %s\n' "  knowledge graph" "GET  $API/api/posts/{id}/related · /api/tags/{tag}[/posts] · /api/graph/overview"
   printf '  %-24s %s\n' "  notifications" "GET  $API/api/notifications?author="
+  printf '  %-24s %s\n' "  chat (RAG answer)" "POST $API/api/chat   (streamed; model: $(env_value CHAT_LLM_URL http://ollama:11434/v1))"
   if "${DC[@]}" --profile observability ps --status running --services 2>/dev/null | grep -qx prometheus; then
     printf '  %-24s %s%s%s\n' "Prometheus" "$C" "$PROMETHEUS" "$N"
   fi
@@ -110,10 +117,11 @@ EOF
 cmd="${1:-up}"; [ $# -gt 0 ] && shift
 case "$cmd" in
   up)
-    profile=() build=--build
+    profile=() build=--build llm=0
     for arg in "$@"; do
       case "$arg" in
-        --observability) profile=(--profile observability) ;;
+        --observability) profile+=(--profile observability) ;;
+        --llm) profile+=(--profile local-llm); llm=1 ;;
         --no-build) build=--no-build ;;
         *) die "unknown option: $arg (see ./app.sh help)" ;;
       esac
@@ -123,16 +131,22 @@ case "$cmd" in
     run "${DC[@]}" ${profile[@]+"${profile[@]}"} up -d "$build" --wait || die "the application did not become healthy: ./app.sh status; ./app.sh logs <service>"
     ok "all services healthy"
     status=0; smoke || status=1
+    if [ $llm = 1 ]; then
+      model=$(env_value CHAT_MODEL qwen3:8b)
+      printf '\n%sLocal model for Chat%s (%s; the first pull downloads several GB)\n' "$B" "$N" "$model"
+      run "${DC[@]}" --profile local-llm exec -T ollama ollama pull "$model" >/dev/null && ok "model $model ready" \
+        || { fail "could not pull $model: Chat answers with the retrieved posts only"; status=1; }
+    fi
     urls
     [ $status = 0 ] && printf '\n%s✔ the application is up.%s Stop it with ./app.sh down\n' "$G" "$N"
     exit $status ;;
   status|ps)
     preflight
-    "${DC[@]}" --profile observability ps -a --format 'table {{.Service}}\t{{.Status}}'
+    "${DC[@]}" --profile observability --profile local-llm ps -a --format 'table {{.Service}}\t{{.Status}}'
     urls ;;
   logs)  preflight; "${DC[@]}" logs -f --tail=200 "$@" ;;
   test)  preflight; run "${DC[@]}" --profile tools run --rm --build contract ;;
-  down|stop) preflight; run "${DC[@]}" --profile observability down --remove-orphans && ok "stopped; data kept" ;;
+  down|stop) preflight; run "${DC[@]}" --profile observability --profile local-llm down --remove-orphans && ok "stopped; data kept" ;;
   export) export_app "$@" ;;
   help|-h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
   *) die "unknown command: $cmd (see ./app.sh help)" ;;

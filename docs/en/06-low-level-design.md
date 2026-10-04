@@ -219,7 +219,7 @@ flowchart TD
 
 ## 6.8 Signed service-to-service calls (`libs/common/common/service_auth.py`)
 
-**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search notify graph web` as root: per service
+**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search notify graph web chat` as root: per service
 `/keys/<name>/private.pem` (PKCS#8 Ed25519, mode 0400, owner uid 10001, directory 0500) and
 `/keys/public/<name>.pem` (0444). Idempotent: existing keys are kept. Each service mounts
 `subpath: <name>` at `/run/keys/self` and `subpath: public` at `/run/keys/public`, read-only.
@@ -289,6 +289,7 @@ extra of `libs/common`.
 | GET | `/api/tags/{tag}` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (10) | graph `GET /tags/{tag}` | 200 `{tag, posts, related[{tag, together}]}` · 404 · 422 · 502 |
 | GET | `/api/tags/{tag}/posts` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (20) | graph `GET /tags/{tag}/posts` | 200 `{tag, posts[{id, title, author}]}` (newest first) · 404 · 422 · 502 |
 | GET | `/api/graph/overview` | `limit` 1–50 (10) | graph `GET /overview` | 200 `{posts, authors, tags, top_tags[{tag, posts}], top_authors[{author, posts}], tag_links[{source, target, together}]}` · 422 · 502 |
+| POST | `/api/chat` | `{messages[{role, content}], k}` | chat `POST /chat` (streamed through `common.relay`) | 200 `text/event-stream`: `sources`, `token`…, `done` · 422 · 502 |
 
 ### content
 
@@ -359,6 +360,36 @@ flowchart LR
   `top_authors` by post count; `tag_links` = pairs among the top tags with `together` = posts carrying both
   (`source < target`, order `together DESC`). Feeds the portal's Analyze page and topic map.
 
+### chat
+
+`services/chat/app.py` (endpoint, retrieval, streaming) and `rag.py` (the pipeline's pure steps). `POST /chat`
+`{messages: [{role: user|assistant, content ≤ 4000}] (1–20, last = user), k: 1–10 (5)}` → `text/event-stream`.
+
+```mermaid
+flowchart LR
+    q[question] --> kw[keywords<br/>stopwords out; a short follow-up<br/>borrows the previous question's]
+    kw -->|"w1 or w2 or …"| s[search<br/>top k]
+    s -->|3 best hits| g[graph /related<br/>≤ 2 each, ≤ 3 total]
+    s & g --> c[content<br/>full text]
+    c --> p[prompt: rules + numbered posts<br/>+ last 8 turns]
+    p --> m[model · common.llm<br/>OpenAI-compatible, streamed]
+    m --> f[ThinkFilter<br/>drops &lt;think&gt;] --> out[token events<br/>done: citations]
+```
+
+| Event | Data |
+|---|---|
+| `sources` (first, once) | `[{id, title, author, tags, via: search\|graph, near?, snippet}]` — what the model was given |
+| `token` | `{text}` — the answer, piece by piece |
+| `done` (last) | `{citations: [ids cited as [#id] that are sources], model: name\|null}` |
+| `error` | `{detail}` — the model failed after it had started answering |
+
+Retrieval errors are HTTP errors before the stream starts (502). Without a model (`CHAT_LLM_URL` empty, unreachable,
+or an error status) the answer lists the retrieved posts, cited, and `model` is `null`; with no matching post it
+says so. The model client (`libs/common/common/llm.py`) is the only place that calls a model: semgrep's
+`unsigned-service-call` keeps raw HTTP out of `services/`. Gateway and web pass the stream through with
+`common.relay` (chunks forwarded as they arrive, read timeout 180 s). Contract: `contract/test_chat.py` holds with
+and without a model.
+
 ### web (rag-web)
 
 The portal: a FastAPI app (`services/web/app.py`) that serves a dependency-free browser client
@@ -377,6 +408,7 @@ of the gateway pass through unchanged. Host port `WEB_PORT` (8081).
 | Tag | `#/tag/{tag}` | `/api/tags/{tag}`, `/api/tags/{tag}/posts` — co-occurring tags, newest posts, authors |
 | Author | `#/author/{name}` | `/api/posts?author=`, `/api/notifications` — posts, topics, notifications, author map |
 | Graph explorer | `#/graph?tag=\|post=\|author=` | click a node to expand it (tag → posts + co-tags, post → author + tags + related, author → posts + tags) |
+| Chat | `#/chat` | `POST /api/chat` (streamed) — thread with live answer, `[#id]` citations as links, sources panel with a graph of the sources, Stop, New chat; the conversation is kept for the browser session |
 
 ## 6.11 Database (`db/migrations`)
 
@@ -483,6 +515,7 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | database |
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | service roles |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | Neo4j graph store |
+| `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | Chat model (any OpenAI-compatible endpoint; set the URL empty for sources-only answers) |
 | `LOG_LEVEL` | `INFO` | services |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | broker heap |
 | `*_TAG` | pinned | image versions |

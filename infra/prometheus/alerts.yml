@@ -120,3 +120,23 @@ groups:
         for: 10m
         labels: { severity: ticket }
         annotations: { summary: "web: p95 latency above 500 ms" }
+  - name: chat
+    rules:
+      - alert: ChatDown
+        expr: up{job="chat"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "chat is not being scraped" }
+      - alert: ChatHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="chat",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="chat"}[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "chat: more than 5% of requests fail" }
+      - alert: ChatSlowRetrieval
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="chat"}[5m]))) > 2
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "chat: p95 time to first event above 2 s (search, graph and content calls)" }

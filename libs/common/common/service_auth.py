@@ -131,5 +131,9 @@ class SignedClient:
     def post(self, url: str, **kw) -> httpx.Response:
         return self._http.post(url, **kw)
 
+    def stream(self, method: str, url: str, **kw):
+        """Context manager yielding a response whose body is read as it arrives (server-sent events)."""
+        return self._http.stream(method, url, **kw)
+
     def close(self) -> None:
         self._http.close()

@@ -2,7 +2,8 @@
 # `make up` starts the stack; `make harness-fast` checks this file (topology sensor) before anything runs.
 #
 # Portal:                         browser -> web -> gateway (signed as web; the gateway API is public)
-# Call graph (signed, Ed25519):   gateway -> content, gateway -> search, gateway -> notify, gateway -> graph
+# Call graph (signed, Ed25519):   gateway -> content, gateway -> search, gateway -> notify, gateway -> graph,
+#                                 gateway -> chat -> search, graph, content (retrieval), chat -> LLM (OpenAI-compatible)
 # Events (Kafka):                 content --content.post.created--> search, notify, graph
 # Data:                           postgres (content_svc, search_svc, notify_svc), neo4j (graph), kafka — under DATA_DIR
 
@@ -42,7 +43,7 @@ services:
     build: { context: ., dockerfile: libs/common/Dockerfile }
     image: air-harness/service-keys:${APP_TAG:-dev}   # tag of locally built application images
     user: "0:0"                             # chowns each private key to the service uid (10001)
-    entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search", "notify", "graph", "web"]
+    entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search", "notify", "graph", "web", "chat"]
     volumes:
       - service-keys:/keys
 
@@ -172,6 +173,7 @@ services:
       SEARCH_URL: http://search:8000
       NOTIFY_URL: http://notify:8000
       GRAPH_URL: http://graph:8000
+      CHAT_URL: http://chat:8000
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: gateway } }
       - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
@@ -181,6 +183,7 @@ services:
       search: { condition: service_healthy }
       notify: { condition: service_healthy }
       graph: { condition: service_healthy }
+      chat: { condition: service_healthy }
 
   content:                                  # owns posts; publishes content.post.created
     <<: [*py, *internal]
@@ -189,7 +192,7 @@ services:
     environment:
       <<: *py-env
       SERVICE_NAME: content
-      TRUSTED_CALLERS: gateway
+      TRUSTED_CALLERS: gateway,chat
       DB_DSN: postgresql://content_svc:${CONTENT_DB_PASSWORD:-content-dev}@postgres:5432/${POSTGRES_DB:-air_harness}
       KAFKA_BOOTSTRAP: kafka:9092
     volumes:
@@ -207,7 +210,7 @@ services:
     environment:
       <<: *py-env
       SERVICE_NAME: search
-      TRUSTED_CALLERS: gateway
+      TRUSTED_CALLERS: gateway,chat
       DB_DSN: postgresql://search_svc:${SEARCH_DB_PASSWORD:-search-dev}@postgres:5432/${POSTGRES_DB:-air_harness}
       KAFKA_BOOTSTRAP: kafka:9092
     volumes:
@@ -243,7 +246,7 @@ services:
     environment:
       <<: *py-env
       SERVICE_NAME: graph
-      TRUSTED_CALLERS: gateway
+      TRUSTED_CALLERS: gateway,chat
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_PASSWORD: ${GRAPH_DB_PASSWORD:-graph-dev}
       KAFKA_BOOTSTRAP: kafka:9092
@@ -254,6 +257,29 @@ services:
       service-keys: { condition: service_completed_successfully }
       graph-init: { condition: service_completed_successfully }
       kafka-init: { condition: service_completed_successfully }
+
+  chat:                                     # answers questions: search -> graph -> content -> LLM, streamed (SSE)
+    <<: [*py, *internal]
+    build: { context: ., dockerfile: services/chat/Dockerfile }
+    image: air-harness/chat:${APP_TAG:-dev}
+    environment:
+      <<: *py-env
+      SERVICE_NAME: chat
+      TRUSTED_CALLERS: gateway
+      SEARCH_URL: http://search:8000
+      GRAPH_URL: http://graph:8000
+      CONTENT_URL: http://content:8000
+      CHAT_LLM_URL: ${CHAT_LLM_URL-http://ollama:11434/v1}    # OpenAI-compatible model endpoint; set empty = answer with the sources only
+      CHAT_MODEL: ${CHAT_MODEL:-qwen3:8b}                     # model name at that endpoint
+      CHAT_LLM_API_KEY: ${CHAT_LLM_API_KEY:-not-needed}       # API key for a hosted endpoint
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: chat } }
+      - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
+    depends_on:
+      service-keys: { condition: service_completed_successfully }
+      content: { condition: service_healthy }
+      search: { condition: service_healthy }
+      graph: { condition: service_healthy }
 
   web:                                      # rag-web: the portal (browser client); forwards /api/* to the gateway, signed
     <<: [*py, *internal]
