@@ -8,6 +8,12 @@ A model is an external dependency, not a service of this system: plain HTTP(S) w
 
 `stream` raises ModelUnavailable when the endpoint cannot be reached or refuses the request; callers decide how
 to degrade. ThinkFilter removes the <think>…</think> reasoning that some models (qwen3, deepseek-r1) put in the text.
+
+On a CPU most of the time goes into tokens, so two switches cut them:
+  think=False      asks a Qwen3-style model to skip its reasoning (the documented `/no_think` soft switch, added to
+                   the last user message; other models are sent nothing extra);
+  json_mode=True   asks for a JSON object (`response_format`), so the answer is short and machine-readable.
+`available()` is a cheap reachability probe (GET /models), for status pages.
 """
 from __future__ import annotations
 
@@ -23,8 +29,8 @@ class ModelUnavailable(Exception):
 
 class ChatModel:
     def __init__(self, base_url: str, model: str, api_key: str = "not-needed", timeout: float = 180.0,
-                 transport: httpx.BaseTransport | None = None):
-        self.base_url, self.model = base_url.rstrip("/"), model
+                 transport: httpx.BaseTransport | None = None, think: bool = True):
+        self.base_url, self.model, self.think = base_url.rstrip("/"), model, think
         self._http = httpx.Client(base_url=self.base_url or "http://unset.invalid", transport=transport,
                                   timeout=httpx.Timeout(timeout, connect=5.0),
                                   headers={"Authorization": f"Bearer {api_key}"})
@@ -33,10 +39,13 @@ class ChatModel:
     def configured(self) -> bool:
         return bool(self.base_url)
 
-    def stream(self, messages: list[dict], temperature: float = 0.2, max_tokens: int = 2048) -> Iterator[str]:
+    def stream(self, messages: list[dict], temperature: float = 0.2, max_tokens: int = 2048,
+               json_mode: bool = False) -> Iterator[str]:
         """Yield the answer's text as the model produces it."""
-        req = {"model": self.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens,
-               "stream": True}
+        req = {"model": self.model, "messages": self.prepare(messages), "temperature": temperature,
+               "max_tokens": max_tokens, "stream": True}
+        if json_mode:
+            req["response_format"] = {"type": "json_object"}
         try:
             with self._http.stream("POST", "/chat/completions", json=req) as r:
                 if r.status_code != 200:
@@ -50,6 +59,26 @@ class ChatModel:
                         yield text
         except httpx.HTTPError as e:
             raise ModelUnavailable(f"{type(e).__name__} calling {self.base_url}") from e
+
+    def prepare(self, messages: list[dict]) -> list[dict]:
+        """The messages as sent: with think=False a Qwen3-style model gets `/no_think` on the last user message."""
+        if self.think or "qwen3" not in self.model.lower():
+            return messages
+        last = max((i for i, m in enumerate(messages) if m.get("role") == "user"), default=None)
+        if last is None:
+            return messages
+        out = list(messages)
+        out[last] = {**messages[last], "content": f"{messages[last]['content']}\n\n/no_think"}
+        return out
+
+    def available(self, timeout: float = 3.0) -> bool:
+        """True when the endpoint answers GET /models (OpenAI-compatible servers, Ollama included)."""
+        if not self.configured:
+            return False
+        try:
+            return self._http.get("/models", timeout=timeout).status_code == 200
+        except httpx.HTTPError:
+            return False
 
     def close(self) -> None:
         self._http.close()

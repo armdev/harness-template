@@ -96,17 +96,77 @@ draws it with the same force-directed graph as the knowledge graph. This graph i
 | `GET /api/planner/tasks/{key}` · `POST /api/planner/tasks/{key}/status` | one task; move it to `todo`, `in_progress`, `review` or `done` |
 | `POST /api/planner/meetings` · `GET /api/planner/meetings?attendee=&start=&days=` | add or update a meeting (`id`, `title`, `starts_at`, `ends_at`, `organizer`, `attendees`); list them |
 | `GET /api/planner/plan/{handle}?start=&days=` | the rules' plan: `order`, `tasks`, `days` (meetings and scheduled items), `unscheduled`, `warnings`, `finishes`, `summary` |
-| `POST /api/planner/plan/{handle}/ai` | the model's re-plan, checked by the rules (above) |
+| `POST /api/planner/plan/{handle}/ai` | the model's re-plan, checked by the rules (above). Waits for the answer; while the model works it sends a space every 10 s (valid JSON whitespace), so proxies do not time out |
+| `POST /api/planner/plan/{handle}/ai/jobs` | the same re-plan as a job: `202` at once with `id`, `status` (`queued`, `running`, `done`, `failed`), `position` while queued, and `poll` |
+| `GET /api/planner/jobs/{id}` | a job; when `done`, `result` is the plan as the endpoint above returns it. Jobs live in the planner's memory (a restart forgets them) |
+| `GET /api/planner/status` | the model (`name`, `configured`, `reachable`, `think`, `tasks_shown`), jobs by status, `cached_answers`, `last_model_seconds` |
+| `POST /api/planner/import` | employees, tasks and meetings in one call and one transaction (all or nothing; up to 1000 / 5000 / 5000); used by `./app.sh seed planner` and the portal |
 | `GET /api/planner/graph?handle=&team=&start=&limit=` | the work graph |
 
 `start` (a date) replaces "today" and makes every answer reproducible; the contract tests use a fixed Monday.
+
+## Using it from code
+
+Everything the portal does goes through the public API (`http://localhost:8080`, Swagger UI at `/docs`). On a CPU, use jobs for the re-plan:
+
+```bash
+API=http://localhost:8080/api/planner
+curl -s -X POST $API/import -H 'content-type: application/json' -d @team.json          # load a team at once
+curl -s "$API/tasks?status=open&severity=blocker&severity=critical&sort=due"            # what is urgent
+job=$(curl -s -X POST $API/plan/anna.petrosyan/ai/jobs -H 'content-type: application/json' \
+      -d '{"instruction": "I am off on Friday; security first"}' | jq -r .id)
+until curl -s $API/jobs/$job | jq -e '.status == "done" or .status == "failed"' >/dev/null; do sleep 2; done
+curl -s $API/jobs/$job | jq '.result | {source, summary, order, days_off, warnings}'
+curl -s $API/status | jq                                                                 # model ready? queue?
+```
+
+## On a CPU (tuned for Linux with 64 GB of RAM)
+
+A language model on a CPU spends its time on tokens: reading the prompt, then writing the answer one token at a
+time, limited mostly by memory bandwidth. So the planner and the model are set up to use as few tokens as possible,
+and never to make the same work twice.
+
+| What | How | Where |
+|---|---|---|
+| no reasoning before the answer | Qwen3's `/no_think` switch on the last user message: the model skips the `<think>` text, often the longest part of the answer | `CHAT_THINK=false` (default; chat and planner) |
+| a short, structured answer | `response_format: json_object` and at most 1536 answer tokens | `planner/app.py` |
+| a short prompt | only the 30 most important tasks, descriptions cut to 160 characters; the rest keep the rules' order | `planning.MODEL_TASKS` |
+| prompt cache | what changes least comes first, the instruction last: a re-plan of the same person with a new instruction lets Ollama reuse the cached prompt prefix | `planning.prompt` |
+| one generation at a time | one worker thread in the planner: two at once on the same cores each run at about half speed, so a queue finishes the first one sooner | `planner/jobs.py` |
+| never twice | identical requests share a job; a model answer is cached by everything the model saw (data and instruction), so asking again costs nothing until the data changes | `planner/jobs.py` |
+| model stays in RAM | the model is kept loaded for 24 h after the last request; loading 5–20 GB from disk takes longer than an answer | `OLLAMA_KEEP_ALIVE=24h` |
+| leaner KV cache | flash attention plus an 8-bit KV cache: half the memory traffic with practically the same answers | `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0` |
+| context that fits | 8192 tokens: room for the planner's prompt and answer, without reserving memory for a huge window | `OLLAMA_CONTEXT_LENGTH=8192` |
+| two streams | chat and a re-plan can run side by side; use 1 if only the planner uses the model | `OLLAMA_NUM_PARALLEL=2` |
+
+**Which model, with 64 GB of RAM.** Set `CHAT_MODEL` in `.env`, then run `./app.sh pull` (it downloads and loads the model).
+
+| Model | Download | On a CPU | Use it when |
+|---|---|---|---|
+| `qwen3:4b` | ~2.5 GB | fastest | the quickest answers matter most |
+| `qwen3:8b` (default) | ~5 GB | good balance | the default; fits any machine |
+| `qwen3:30b-a3b` | ~19 GB | about as fast as a 4B model (a mixture of experts: only ~3B parameters are active per token), with the judgement of a much larger one | **recommended with 64 GB of RAM** |
+| `qwen3:14b` | ~9 GB | about half the speed of 8B | better judgement, and the wait is acceptable |
+
+Measure on your own machine: `GET /api/planner/status` shows `last_model_seconds`, and a job's `running_seconds`
+counts while the model works.
+
+**An Ollama installed on the machine** (not the container) does not read the variables above from `.env`.
+Set them for its service, then restart it:
+
+```bash
+sudo systemctl edit ollama        # add, under [Service]:
+#   Environment="OLLAMA_KEEP_ALIVE=24h" "OLLAMA_FLASH_ATTENTION=1" "OLLAMA_KV_CACHE_TYPE=q8_0"
+#   Environment="OLLAMA_CONTEXT_LENGTH=8192" "OLLAMA_NUM_PARALLEL=2" "OLLAMA_MAX_LOADED_MODELS=1"
+sudo systemctl restart ollama
+```
 
 ## Where it lives
 
 | Part | Files |
 |---|---|
-| service | `services/planner/app.py` (API, Postgres), `planning.py` (priority, schedule, prompt and answer reader: pure functions) |
-| tests | `services/planner/tests/test_planning.py` (unit, `make test`), `contract/test_planner.py` (API) |
+| service | `services/planner/app.py` (API, Postgres), `jobs.py` (model queue and answer cache), `planning.py` (priority, schedule, prompt and answer reader: pure functions) |
+| tests | `services/planner/tests/` (unit, `make test`), `contract/test_planner.py`, `contract/test_planner_api.py` (API) |
 | schema | `db/migrations/V9__planner.sql`: role `planner_svc`, schema `planner`, tables `employees`, `tasks`, `meetings` |
 | wiring | compose `planner` (trusts `gateway`, own key, `PLANNER_DB_PASSWORD`), gateway routes `/api/planner/*`, Prometheus job and alerts |
 | data | `services/web/static/datasets/planner.json` (seeded by `tools/seed.py`, or by the portal) |

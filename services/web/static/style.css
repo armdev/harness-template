@@ -174,3 +174,4 @@ svg .node.task.major circle { fill: var(--major); } svg .node.task.minor circle 
 svg .edge.depends_on { stroke-dasharray: 5 3; stroke: var(--muted); } svg .edge.meets { stroke: color-mix(in srgb, var(--person) 55%, transparent); }
 .legend .le::before { background: var(--person); } .legend .sb::before { background: var(--blocker); } .legend .sc::before { background: var(--critical); }
 .legend .sm::before { background: var(--major); } .legend .sn::before { background: var(--minor); }
+.chip.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }

@@ -96,7 +96,8 @@ else
   done
 fi
 printf '  loading %s into memory (the first time takes a while)…\n' "$MODEL"
-if curl -fsS -m 900 -o /dev/null "$BASE/api/generate" -d "{\"model\":\"$MODEL\",\"prompt\":\"\",\"keep_alive\":\"30m\"}"; then
+KEEP="${OLLAMA_KEEP_ALIVE:-24h}"                      # how long it stays in RAM after this warm-up
+if curl -fsS -m 900 -o /dev/null "$BASE/api/generate" -d "{\"model\":\"$MODEL\",\"prompt\":\"\",\"keep_alive\":\"$KEEP\"}"; then
   ok "model $MODEL is loaded and ready"
 else
   warn "the model is installed but did not load yet; the first question will load it"

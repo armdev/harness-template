@@ -276,6 +276,7 @@ services:
       CHAT_LLM_URL: ${CHAT_LLM_URL-http://ollama:11434/v1}    # OpenAI-compatible model endpoint; set empty = answer with the sources only
       CHAT_MODEL: ${CHAT_MODEL:-qwen3:8b}                     # model name at that endpoint
       CHAT_LLM_API_KEY: ${CHAT_LLM_API_KEY:-not-needed}       # API key for a hosted endpoint
+      CHAT_THINK: ${CHAT_THINK:-false}                        # let Qwen3-style models reason first (much slower on a CPU)
     extra_hosts: ["host.docker.internal:host-gateway"]     # a model served on this machine (e.g. a native Ollama)
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: chat } }
@@ -298,6 +299,7 @@ services:
       PLANNER_LLM_URL: ${CHAT_LLM_URL-http://ollama:11434/v1}   # the chat's model endpoint re-plans too; empty = rules only
       PLANNER_MODEL: ${CHAT_MODEL:-qwen3:8b}
       PLANNER_LLM_API_KEY: ${CHAT_LLM_API_KEY:-not-needed}
+      PLANNER_THINK: ${CHAT_THINK:-false}
     extra_hosts: ["host.docker.internal:host-gateway"]     # a model served on this machine (e.g. a native Ollama)
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: planner } }
@@ -329,12 +331,18 @@ services:
     volumes:
       - ./infra/prometheus:/etc/prometheus:ro
 
-  ollama:                                   # local OpenAI-compatible LLM for the review agent: make llm
+  ollama:                                   # local OpenAI-compatible LLM (chat, planner, review agent): --llm
     image: ollama/ollama:${OLLAMA_TAG:-0.12.3}   # Ollama image tag
     profiles: [local-llm]
     ports: ["${OLLAMA_PORT:-11434}:11434"]   # host port of the local LLM API
-    environment:
+    environment:                            # tuned for a CPU with plenty of RAM (see docs: Planner, CPU)
       HTTPS_PROXY: ${OLLAMA_HTTPS_PROXY:-}   # proxy for model downloads, if this network needs one
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}           # keep the model in RAM: loading it takes longer than answering
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}         # answers at once (chat + planner); more splits the cores
+      OLLAMA_MAX_LOADED_MODELS: ${OLLAMA_MAX_LOADED_MODELS:-1}   # one model resident; a second would evict caches
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-8192}  # tokens of context: the planner's prompt fits with room
+      OLLAMA_FLASH_ATTENTION: ${OLLAMA_FLASH_ATTENTION:-1}   # faster attention, also on a CPU; needed for the KV type
+      OLLAMA_KV_CACHE_TYPE: ${OLLAMA_KV_CACHE_TYPE:-q8_0}    # half the KV-cache memory and bandwidth, same answers
     volumes:
       - ${DATA_DIR:-/var/tmp/air-harness}/ollama:/root/.ollama
 

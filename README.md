@@ -86,7 +86,9 @@ posts it found.
 (severity, estimate, due date, dependencies) and their Outlook-style meetings. Every task gets a priority score with
 readable reasons, and each person's week is filled around their meetings. **Re-plan with AI** lets the model re-order
 a person's tasks following an instruction ("I am off on Friday; security first"), and the rules check its answer. Load
-the sample team with `./app.sh seed planner`. Details: [Planner](docs/en/08-planner.md) ([по-русски](docs/ru/08-planner.md)).
+the sample team with `./app.sh seed planner`. Everything is in the API (`/api/planner/*`, including re-plans as jobs
+to poll and a bulk import), and the model path is tuned for a CPU: no reasoning tokens, JSON answers, a short prompt,
+one generation at a time and cached answers. Details: [Planner](docs/en/08-planner.md) ([по-русски](docs/ru/08-planner.md)).
 
 ![rag-web: plan](docs/assets/plan-person.png)
 
