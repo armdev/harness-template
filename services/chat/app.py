@@ -67,11 +67,22 @@ class ChatIn(BaseModel):
 
 
 def call(service: str, path: str, **params) -> httpx.Response:
+    """Search is required: without it there is nothing to answer from (502)."""
     try:
         return clients[service].get(path, params=params)
     except httpx.HTTPError as e:
         log.warning("upstream %s unavailable: %s", service, type(e).__name__)
         raise HTTPException(status_code=502, detail=f"{service} unavailable") from None
+
+
+def optional(service: str, path: str, **params) -> httpx.Response | None:
+    """Graph neighbours and single posts only enrich the answer: on trouble, answer without them."""
+    try:
+        r = clients[service].get(path, params=params)
+    except httpx.HTTPError as e:
+        log.warning("%s unavailable, answering without it: %s", service, type(e).__name__)
+        return None
+    return r if r.status_code == 200 else None
 
 
 def retrieve(user_turns: list[str], k: int) -> list[dict]:
@@ -86,8 +97,8 @@ def retrieve(user_turns: list[str], k: int) -> list[dict]:
     seen = {f["id"] for f in found}
     added = 0
     for hit in found[:GRAPH_SEEDS]:
-        r = call("graph", f"/related/{hit['id']}", limit=GRAPH_PER_SEED)
-        if r.status_code != 200:                       # 404: not in the graph yet; the search hit still counts
+        r = optional("graph", f"/related/{hit['id']}", limit=GRAPH_PER_SEED)
+        if r is None:                                  # not in the graph yet, or graph down: the hit still counts
             continue
         for rel in r.json()["related"]:
             if rel["id"] not in seen and added < GRAPH_MAX:
@@ -96,8 +107,8 @@ def retrieve(user_turns: list[str], k: int) -> list[dict]:
                 added += 1
     sources = []
     for f in found:
-        r = call("content", f"/posts/{f['id']}")
-        if r.status_code == 200:
+        r = optional("content", f"/posts/{f['id']}")
+        if r is not None:
             p = r.json()
             sources.append({**f, "title": p["title"], "author": p["author"], "tags": p["tags"], "body": p["body"]})
     return sources
@@ -131,6 +142,9 @@ def answer(history: list[dict], sources: list[dict]) -> Iterator[str]:
             yield from degrade(sources, "the model is unavailable")
             return
         yield event("error", {"detail": "the model stopped answering"})
+    if not text:                                       # e.g. a reasoning model spent its budget inside <think>
+        yield from degrade(sources, "the model returned no answer")
+        return
     full = "".join(text)
     yield event("done", {"citations": citations(full, sources), "model": model.model})
 

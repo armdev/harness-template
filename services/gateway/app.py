@@ -28,6 +28,7 @@ async def lifespan(_app):
     yield
     for c in clients.values():
         c.close()
+        await c.aclose()
 
 
 app = create_app("gateway", lifespan=lifespan, description=(
@@ -61,7 +62,11 @@ async def create_post(post: dict = Body(examples=[POST_EXAMPLE])) -> Response:  
 
 @app.get("/api/posts", summary="List one author's posts, newest first")
 async def list_posts(author: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
-                     limit: int = Query(20, ge=1, le=50)) -> Response:
+                     limit: int = Query(20, ge=1, le=50),
+                     before: int | None = Query(None, ge=1, le=2**63 - 1,
+                                                description="next page: the id of the last post seen")) -> Response:
+    if before:
+        return await forward("content", "GET", "/posts", params={"author": author, "limit": limit, "before": before})
     return await forward("content", "GET", "/posts", params={"author": author, "limit": limit})
 
 

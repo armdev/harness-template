@@ -286,7 +286,7 @@ asynchronous=False)` · не JSON или обработчик бросил `Valu
 |---|---|---|---|---|
 | GET | `/` | — | — | 307 → `/docs` |
 | POST | `/api/posts` | JSON-тело (объект) | content `POST /posts` | 201 пост · 422 валидация · 502 недоступен upstream |
-| GET | `/api/posts` | `author` (обязателен, `^[A-Za-z0-9._-]+$`), `limit` 1–50 (20) | content `GET /posts` | 200 `{author, posts[]}`, новые первыми · 422 · 502 |
+| GET | `/api/posts` | `author` (обязателен, `^[A-Za-z0-9._-]+$`), `limit` 1–50 (20), `before` (id последнего увиденного поста: следующая страница) | content `GET /posts` | 200 `{author, posts[]}`, новые первыми · 422 · 502 |
 | GET | `/api/posts/{post_id}` | `post_id: int` | content `GET /posts/{id}` | 200 · 404 · 422 · 502 |
 | GET | `/api/search` | `q` 1–200 символов, `author?`, `tag?` (`^[a-z0-9-]{1,32}$`), `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
 | GET | `/api/notifications` | `author` (обязателен), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}`, новые первыми · 422 · 502 |
@@ -300,8 +300,9 @@ asynchronous=False)` · не JSON или обработчик бросил `Valu
 
 `PostIn`: `title` 1–200, `body` 1–20000, `author` 1–64 по шаблону `^[A-Za-z0-9._-]+$`, `tags` — 0–5 элементов
 по шаблону `^[a-z0-9-]{1,32}$` (по умолчанию `[]`). `Post` = `PostIn` + `id: int`, `created_at: datetime`.
-`GET /posts?author=&limit=` возвращает `{author, posts[]}` в порядке `created_at DESC, id DESC` по индексу
-`posts_author_created_idx`.
+`GET /posts?author=&limit=&before=` возвращает `{author, posts[]}` в порядке `id DESC` (новые первыми) по индексу
+`posts_author_id_idx` (V8); `before=<id>` — следующая страница (id меньше указанного). Курсор и порядок совпадают,
+поэтому между страницами посты не теряются; так листают `tools/seed.py` и загрузчик портала.
 
 ```mermaid
 sequenceDiagram
@@ -441,6 +442,7 @@ flowchart LR
 | `V5__content_posts_tags.sql` | `content.posts.tags text[] NOT NULL DEFAULT '{}'`, не больше 5 |
 | `V6__search_documents_tags.sql` | `search.documents.tags` + индекс GIN |
 | `V7__notify_outbox.sql` | роль `notify_svc` (плейсхолдер `${notify_db_password}`); схема `notify`; `notify.outbox` + индекс |
+| `V8__content_posts_author_id_idx.sql` | индекс `(author, id DESC)` для постраничного списка постов автора (`before`) |
 
 ```mermaid
 erDiagram

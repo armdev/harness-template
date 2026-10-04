@@ -101,6 +101,18 @@ async function showDatasets() {
   box.querySelectorAll("[data-set]").forEach(b => { b.onclick = () => loadDataset(sets.find(d => d.id === b.dataset.set), b); });
 }
 
+async function titlesOf(author) {              // every title the author has, page by page
+  const titles = new Set();
+  for (let before = null; ;) {
+    const page = (await get("/posts", { author, limit: 50, ...(before ? { before } : {}) })).posts;
+    page.forEach(p => titles.add(p.title));
+    if (page.length < 50) return titles;
+    const last = page[page.length - 1].id;
+    if (before !== null && last >= before) throw new Error("the API ignored the 'before' cursor; cannot page safely");
+    before = last;
+  }
+}
+
 // The same as ./app.sh seed: through the public API, and idempotent (an author's post with the same title is skipped).
 async function loadDataset(set, btn) {
   const msg = document.getElementById("sample-msg");
@@ -108,9 +120,7 @@ async function loadDataset(set, btn) {
   try {
     const posts = await (await fetch(`/static/datasets/${set.file}`)).json();
     const have = new Map();
-    for (const author of new Set(posts.map(p => p.author))) {
-      have.set(author, new Set((await get("/posts", { author, limit: 50 })).posts.map(p => p.title)));
-    }
+    for (const author of new Set(posts.map(p => p.author))) have.set(author, await titlesOf(author));
     const todo = posts.filter(p => !have.get(p.author).has(p.title));
     let last = null;
     for (const [i, p] of todo.entries()) {
@@ -150,7 +160,9 @@ async function pageSearch(_arg, q) {
   if (params.author) req.author = params.author;
   const r = await get("/search", req);
   const words = params.q.toLowerCase().match(/[a-z0-9]{2,}/g) || [];
-  const hl = s => words.length ? esc(s).replace(new RegExp(`(${words.join("|")})`, "gi"), "<mark>$1</mark>") : esc(s);
+  const re = words.length ? new RegExp(`(${words.join("|")})`, "gi") : null;     // split, then escape each part:
+  const hl = s => re ? String(s).split(re).map((part, i) => i % 2 ? `<mark>${esc(part)}</mark>` : esc(part)).join("")
+    : esc(s);                                                                    // never highlight inside &amp; etc.
   if (!r.hits.length) { box.innerHTML = `<div class="card"><p class="empty">No posts match “${esc(params.q)}”.</p></div>`; return; }
   const tags = countBy(r.hits.flatMap(h => h.tags)).slice(0, 12), authors = countBy(r.hits.map(h => h.author)).slice(0, 8);
   box.innerHTML = `<div class="grid g-side"><div class="card"><h2>${r.hits.length} result${r.hits.length > 1 ? "s" : ""}</h2>
@@ -191,11 +203,17 @@ function pageWrite() {
   };
 }
 
+// Any of the post's own words (title first): a title of only stopwords or a "-word" must not hide the post.
+function ownWords(p) {
+  const words = [...new Set(`${p.title} ${p.body}`.toLowerCase().match(/[a-z0-9]{3,}/g) || [])].slice(0, 12);
+  return words.length ? words.join(" or ") : p.title;
+}
+
 async function track(p) {
   const li = [...document.querySelectorAll("#steps li")];
   li[0].className = "ok"; li[0].innerHTML = `content stored post <a href="#/post/${p.id}">#${p.id}</a>`;
   const checks = [
-    async () => (await get("/search", { q: p.title, author: p.author, limit: 50 })).hits.some(h => h.id === p.id),
+    async () => (await get("/search", { q: ownWords(p), author: p.author, limit: 50 })).hits.some(h => h.id === p.id),
     async () => { try { await get(`/posts/${p.id}/related`); return true; } catch (e) { if (e.status === 404) return false; throw e; } },
     async () => (await get("/notifications", { author: p.author, limit: 50 })).notifications.some(n => n.post_id === p.id),
   ];
@@ -363,6 +381,9 @@ async function pageGraph(_arg, q) {
 
 // ------------------------------------------------------------------ Chat
 const CHAT_KEY = "rag-web.chat";
+const HISTORY = 8;                 // turns sent with a question; the chat service uses the same number
+let activeStream = null;           // the answer being streamed; leaving the page stops it
+let chatGeneration = 0;            // bumped by "New chat": a finishing answer from before it is discarded
 // Suggested questions come from the sample datasets whose topics are in the graph (or all of them when it is empty).
 async function suggestions() {
   try {
@@ -434,6 +455,7 @@ async function pageChat() {
 
   function showSources(turn) {
     const box = document.getElementById("sources"), gbox = document.getElementById("src-graph");
+    if (!box || !gbox) return;                                     // not on the chat page any more
     const src = turn?.sources || [];
     if (!src.length) { box.innerHTML = `<p class="empty">${turn ? "No posts matched." : "Ask a question to see which posts answer it."}</p>`; gbox.hidden = true; return; }
     const cited = new Set(turn.citations || []);
@@ -477,8 +499,12 @@ async function pageChat() {
     turns.push({ role: "user", content: text });
     const bot = { role: "assistant", content: "", sources: [], pending: true };
     turns.push(bot); draw();
-    const messages = turns.filter(t => !t.pending && t.content).map(t => ({ role: t.role, content: t.content }));
+    // The server uses the last 8 turns and accepts at most 20 of at most 4000 characters: never send more.
+    const messages = turns.filter(t => !t.pending && t.content).slice(-HISTORY)
+      .map(t => ({ role: t.role, content: t.content.slice(0, 4000) }));
     controller = new AbortController(); send.hidden = true; stop.hidden = false;
+    const mine = controller, generation = chatGeneration;
+    activeStream = mine; saveChat(turns);
     try {
       const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages }), signal: controller.signal });
@@ -504,7 +530,15 @@ async function pageChat() {
     } catch (e) {
       bot.error = e.name === "AbortError" ? "stopped" : e.message;
     } finally {
-      bot.pending = false; controller = null; send.hidden = false; stop.hidden = true;
+      bot.pending = false;
+      if (controller === mine) controller = null;
+      if (activeStream === mine) activeStream = null;
+      if (generation !== chatGeneration) return;                  // "New chat" was pressed: this turn is gone
+      if (!thread.isConnected) {                                   // the user left the page: keep the turn, touch no DOM
+        if (loadChat().length === turns.length) saveChat(turns);   // ...unless another chat page has saved since
+        return;
+      }
+      send.hidden = false; stop.hidden = true;
       saveChat(turns); draw(); showSources(bot); q.focus();
     }
   }
@@ -512,7 +546,12 @@ async function pageChat() {
   document.getElementById("ask").onsubmit = ev => { ev.preventDefault(); submit(); };
   q.addEventListener("keydown", ev => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); submit(); } });
   stop.onclick = () => controller && controller.abort();
-  document.getElementById("new-chat").onclick = () => { if (controller) controller.abort(); turns = []; saveChat(turns); draw(); showSources(null); };
+  document.getElementById("new-chat").onclick = () => {
+    chatGeneration++;
+    if (controller) controller.abort();
+    controller = null; send.hidden = false; stop.hidden = true;
+    turns = []; saveChat(turns); draw(); showSources(null);
+  };
   turns = turns.filter(t => !t.pending);
   draw();
   const last = [...turns].reverse().find(t => t.role === "assistant");
@@ -526,7 +565,9 @@ const routes = { "": pageAnalyze, search: pageSearch, write: pageWrite, post: pa
 async function route() {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
   const [name, ...rest] = path.split("/");
-  const arg = decodeURIComponent(rest.join("/"));
+  let arg = rest.join("/");
+  try { arg = decodeURIComponent(arg); } catch { /* a malformed %-sequence: use it as typed */ }
+  if (activeStream) { activeStream.abort(); activeStream = null; }
   document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("active", a.dataset.route === name));
   const page = routes[name] || pageAnalyze;
   view.innerHTML = `<p class="empty">loading…</p>`;

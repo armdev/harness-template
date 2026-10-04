@@ -85,3 +85,11 @@ def test_chat_validates_the_conversation(api):
     assert api.post("/api/chat", json={"messages": [{"role": "system", "content": "x"}]}).status_code == 422
     assert ask(api, "x" * 4001).status_code == 422
     assert ask(api, "ok?", k=11).status_code == 422
+
+
+def test_a_long_question_is_answered_not_rejected(api):
+    long_words = " ".join(f"counterpartycreditrisk{i:02d}{'x' * 20}" for i in range(12))
+    for question in (long_words, "Tell me about " + "x" * 250):
+        r = ask(api, question)
+        assert r.status_code == 200, r.text
+        assert events(r)[-1][0] == "done"

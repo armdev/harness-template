@@ -48,9 +48,22 @@ def retrieval_words(user_turns: list[str]) -> list[str]:
     return words[:12]
 
 
+MAX_QUERY_CHARS = 200          # the search service's limit on q
+MAX_WORD_CHARS = 40            # longer "words" (hashes, URLs) are cut; they would not match a post anyway
+
+
 def search_query(words: list[str]) -> str:
-    """websearch_to_tsquery syntax: any of the words (the search service ranks posts matching more of them higher)."""
-    return " or ".join(words)
+    """websearch_to_tsquery syntax: any of the words (the search service ranks posts matching more of them higher).
+
+    Words are added in order while the query stays within the search service's limit on q.
+    """
+    query = ""
+    for w in (w[:MAX_WORD_CHARS] for w in words):
+        candidate = f"{query} or {w}" if query else w
+        if len(candidate) > MAX_QUERY_CHARS:
+            break
+        query = candidate
+    return query
 
 
 def context_block(sources: list[dict]) -> str:

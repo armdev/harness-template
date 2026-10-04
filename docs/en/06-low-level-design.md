@@ -281,7 +281,7 @@ extra of `libs/common`.
 |---|---|---|---|---|
 | GET | `/` | — | — | 307 → `/docs` |
 | POST | `/api/posts` | JSON body (object) | content `POST /posts` | 201 post · 422 validation · 502 upstream down |
-| GET | `/api/posts` | `author` (required, `^[A-Za-z0-9._-]+$`), `limit` 1–50 (20) | content `GET /posts` | 200 `{author, posts[]}` newest first · 422 · 502 |
+| GET | `/api/posts` | `author` (required, `^[A-Za-z0-9._-]+$`), `limit` 1–50 (20), `before` (id of the last post seen: next page) | content `GET /posts` | 200 `{author, posts[]}` newest first · 422 · 502 |
 | GET | `/api/posts/{post_id}` | `post_id: int` | content `GET /posts/{id}` | 200 · 404 · 422 · 502 |
 | GET | `/api/search` | `q` 1–200 chars, `author?`, `tag?` (`^[a-z0-9-]{1,32}$`), `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
 | GET | `/api/notifications` | `author` (required), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}` newest first · 422 · 502 |
@@ -295,8 +295,9 @@ extra of `libs/common`.
 
 `PostIn`: `title` 1–200, `body` 1–20000, `author` 1–64 matching `^[A-Za-z0-9._-]+$`, `tags` 0–5 items each
 matching `^[a-z0-9-]{1,32}$` (default `[]`). `Post` = `PostIn` + `id: int`, `created_at: datetime`.
-`GET /posts?author=&limit=` returns `{author, posts[]}` ordered `created_at DESC, id DESC`, served by the
-index `posts_author_created_idx`.
+`GET /posts?author=&limit=&before=` returns `{author, posts[]}` ordered `id DESC` (newest first), served by the
+index `posts_author_id_idx` (V8); `before=<id>` returns the next page (ids below it). Paging by id keeps the cursor
+and the order the same, so no post is skipped between pages; `tools/seed.py` and the portal's loader page this way.
 
 ```mermaid
 sequenceDiagram
@@ -435,6 +436,7 @@ retrieves the right banking post.
 | `V5__content_posts_tags.sql` | `content.posts.tags text[] NOT NULL DEFAULT '{}'`, at most 5 |
 | `V6__search_documents_tags.sql` | `search.documents.tags` + GIN index |
 | `V7__notify_outbox.sql` | role `notify_svc` (placeholder `${notify_db_password}`); schema `notify`; `notify.outbox` + index |
+| `V8__content_posts_author_id_idx.sql` | index `(author, id DESC)` for paging an author's posts with `before` |
 
 ```mermaid
 erDiagram

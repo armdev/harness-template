@@ -69,3 +69,28 @@ def test_list_validates_parameters(api, author):
     assert api.get("/api/posts", params={"author": "not an author!"}).status_code == 422
     assert api.get("/api/posts", params={"author": author, "limit": 0}).status_code == 422
     assert api.get("/api/posts", params={"author": author, "limit": 51}).status_code == 422
+
+
+def test_list_by_author_pages_with_the_before_cursor(api, author):
+    ids = [new_post(api, author, title=f"Page {i}").json()["id"] for i in range(5)]
+    newest_first = ids[::-1]
+
+    def page(**params):
+        r = api.get("/api/posts", params={"author": author, "limit": 2, **params})
+        assert r.status_code == 200, r.text
+        return [p["id"] for p in r.json()["posts"]]
+
+    first = page()
+    second = page(before=first[-1])
+    third = page(before=second[-1])
+    assert first + second + third == newest_first
+    assert page(before=third[-1]) == []
+
+
+def test_list_validates_the_before_cursor(api, author):
+    for bad in (0, -1, "x"):
+        assert api.get("/api/posts", params={"author": author, "before": bad}).status_code == 422
+
+
+def test_a_cursor_beyond_any_id_is_422_not_500(api, author):
+    assert api.get("/api/posts", params={"author": author, "before": 2**64}).status_code == 422

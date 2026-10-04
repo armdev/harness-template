@@ -114,9 +114,16 @@ class SignedClient:
         self._key = key
         self._http = httpx.Client(base_url=base_url, timeout=timeout, transport=transport,
                                   event_hooks={"request": [self._sign]})
+        self._async_args = {"base_url": base_url, "timeout": timeout, "transport": transport}
+        self._async: httpx.AsyncClient | None = None
 
     def _sign(self, request: httpx.Request) -> None:
-        body = request.read()
+        self._sign_body(request, request.read())
+
+    async def _asign(self, request: httpx.Request) -> None:
+        self._sign_body(request, await request.aread())
+
+    def _sign_body(self, request: httpx.Request, body: bytes) -> None:
         request.headers.update(sign(self._key, request.method, request.url.raw_path.decode(), body))
         request.headers[HEADER_CALLER] = self.identity
         if rid := request_id.get():
@@ -134,6 +141,17 @@ class SignedClient:
     def stream(self, method: str, url: str, **kw):
         """Context manager yielding a response whose body is read as it arrives (server-sent events)."""
         return self._http.stream(method, url, **kw)
+
+    def astream(self, method: str, url: str, **kw):
+        """Async context manager for a streamed response: no thread is held while waiting for the next chunk, and
+        cancelling the caller (the client went away) closes the upstream connection at once."""
+        if self._async is None:
+            self._async = httpx.AsyncClient(**self._async_args, event_hooks={"request": [self._asign]})
+        return self._async.stream(method, url, **kw)
+
+    async def aclose(self) -> None:
+        if self._async is not None:
+            await self._async.aclose()
 
     def close(self) -> None:
         self._http.close()

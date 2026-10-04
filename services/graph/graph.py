@@ -19,15 +19,22 @@ MERGE (p)-[:TAGGED]->(t)
 
 POST_EXISTS = "MATCH (p:Post {id: $id}) RETURN p.id AS id"
 
-SHARED_TAGS = """
-MATCH (p:Post {id: $id})-[:TAGGED]->(t:Tag)<-[:TAGGED]-(o:Post)<-[:WROTE]-(oa:Author)
-RETURN o.id AS id, o.title AS title, oa.name AS author, collect(t.name) AS shared_tags
-"""
-
-SAME_AUTHOR = """
-MATCH (p:Post {id: $id})<-[:WROTE]-(a:Author)-[:WROTE]->(o:Post)
-WHERE o <> p
-RETURN o.id AS id, o.title AS title, a.name AS author
+RELATED = """
+MATCH (p:Post {id: $id})<-[:WROTE]-(a:Author)
+CALL (p, a) {
+  MATCH (p)-[:TAGGED]->(t:Tag)<-[:TAGGED]-(o:Post)
+  RETURN o, t.name AS tag
+  UNION ALL
+  MATCH (a)-[:WROTE]->(o:Post) WHERE o <> p
+  RETURN o, null AS tag
+}
+WITH a, o, collect(DISTINCT tag) AS shared
+MATCH (oa:Author)-[:WROTE]->(o)
+WITH o, oa, shared, oa = a AS same_author
+WITH o, oa, shared, same_author, size(shared) + CASE WHEN same_author THEN 1 ELSE 0 END AS score
+RETURN o.id AS id, o.title AS title, oa.name AS author, shared AS shared_tags, same_author, score
+ORDER BY score DESC, id DESC
+LIMIT $limit
 """
 
 TAG_POSTS = "MATCH (t:Tag {name: $tag}) OPTIONAL MATCH (t)<-[:TAGGED]-(p:Post) RETURN count(p) AS posts"
@@ -82,25 +89,16 @@ def index_post(driver: Driver, event: dict) -> None:
     driver.execute_query(INDEX_POST, params)
 
 
-def rank(shared: list[dict], same_author: list[dict], limit: int) -> list[dict]:
-    """One entry per related post: score = shared tags + 1 if by the same author; ties: newest (highest id) first."""
-    found: dict[int, dict] = {}
-    for r in shared:
-        found[r["id"]] = {**r, "shared_tags": sorted(r["shared_tags"]), "same_author": False}
-    for r in same_author:
-        found.setdefault(r["id"], {**r, "shared_tags": []})["same_author"] = True
-    for r in found.values():
-        r["score"] = len(r["shared_tags"]) + (1 if r["same_author"] else 0)
-    return sorted(found.values(), key=lambda r: (-r["score"], -r["id"]))[:limit]
-
-
 def related(driver: Driver, post_id: int, limit: int) -> list[dict] | None:
-    """Posts linked to `post_id` through shared tags or its author; None if the post is not in the graph."""
+    """Posts linked to `post_id` through shared tags or its author, best first; None if the post is not in the graph.
+
+    score = shared tags + 1 if by the same author; ties: newest (highest id) first. Ranked and limited in Neo4j, so a
+    tag carried by thousands of posts costs one aggregation there, not thousands of rows here.
+    """
     if not driver.execute_query(POST_EXISTS, {"id": post_id}).records:
         return None
-    shared = [r.data() for r in driver.execute_query(SHARED_TAGS, {"id": post_id}).records]
-    same = [r.data() for r in driver.execute_query(SAME_AUTHOR, {"id": post_id}).records]
-    return rank(shared, same, limit)
+    rows = driver.execute_query(RELATED, {"id": post_id, "limit": limit}).records
+    return [{**r.data(), "shared_tags": sorted(r["shared_tags"])} for r in rows]
 
 
 def tag_neighbourhood(driver: Driver, tag: str, limit: int) -> dict | None:
