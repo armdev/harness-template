@@ -102,6 +102,11 @@ exits 2 with the report, so the agent goes back to work:
 
 ![console API playground](../assets/console-api.png)
 
+The knowledge graph's endpoints (service `graph`, Neo4j) appear in the same tab without any UI change — posts
+related through shared tags and authors, and a tag's neighbourhood:
+
+![console: knowledge graph endpoints](../assets/console-graph.png)
+
 **Harness** — every stage one click away; each sensor with its last result, selftest verdict and history:
 
 ![console harness](../assets/console-harness.png)

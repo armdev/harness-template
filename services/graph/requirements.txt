@@ -1,0 +1,3 @@
+uvicorn==0.54.0
+neo4j==5.28.2
+confluent-kafka==2.15.1

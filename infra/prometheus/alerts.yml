@@ -80,3 +80,23 @@ groups:
         for: 10m
         labels: { severity: ticket }
         annotations: { summary: "notify: p95 latency above 500 ms" }
+  - name: graph
+    rules:
+      - alert: GraphDown
+        expr: up{job="graph"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "graph is not being scraped" }
+      - alert: GraphHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="graph",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="graph"}[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "graph: more than 5% of requests fail" }
+      - alert: GraphHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="graph"}[5m]))) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "graph: p95 latency above 500 ms" }

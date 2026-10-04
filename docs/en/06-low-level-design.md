@@ -109,7 +109,7 @@ is clean there, consider a later stage; *blind/noisy* → fix the sensor; no ver
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.5.0 }
+template: { name: py-services-pg-kafka, version: 0.5.1 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <unique>                 # referenced by sensors.pairs_with
@@ -133,7 +133,7 @@ sensors:
 
 ## 6.3 Sensor containers (`compose.harness.yml`, `harness.mk`)
 
-Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.5.0}`, profile `harness`,
+Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.5.1}`, profile `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (set by make to the invoking user), `read_only: true`, `tmpfs: /tmp`,
 `cap_drop: [ALL]`, `no-new-privileges`, the repository at `/work:ro` and `./.harness` at `/out`.
 
@@ -219,7 +219,7 @@ flowchart TD
 
 ## 6.8 Signed service-to-service calls (`libs/common/common/service_auth.py`)
 
-**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search notify` as root: per service
+**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search notify graph` as root: per service
 `/keys/<name>/private.pem` (PKCS#8 Ed25519, mode 0400, owner uid 10001, directory 0500) and
 `/keys/public/<name>.pem` (0444). Idempotent: existing keys are kept. Each service mounts
 `subpath: <name>` at `/run/keys/self` and `subpath: public` at `/run/keys/public`, read-only.
@@ -285,6 +285,8 @@ extra of `libs/common`.
 | GET | `/api/posts/{post_id}` | `post_id: int` | content `GET /posts/{id}` | 200 · 404 · 422 · 502 |
 | GET | `/api/search` | `q` 1–200 chars, `author?`, `tag?` (`^[a-z0-9-]{1,32}$`), `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
 | GET | `/api/notifications` | `author` (required), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}` newest first · 422 · 502 |
+| GET | `/api/posts/{post_id}/related` | `post_id: int`, `limit` 1–50 (10) | graph `GET /related/{id}` | 200 `{post_id, related[{id, title, author, score, shared_tags, same_author}]}` · 404 · 422 · 502 |
+| GET | `/api/tags/{tag}` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (10) | graph `GET /tags/{tag}` | 200 `{tag, posts, related[{tag, together}]}` · 404 · 422 · 502 |
 
 ### content
 
@@ -312,7 +314,7 @@ sequenceDiagram
 
 Event `content.post.created` (3 partitions): key = post id, value =
 `{"id", "title", "body", "author", "tags", "created_at"}` (`tags` was added later; consumers treat a missing
-field as `[]`). Only additive changes; a breaking change needs a new topic. Consumers: `search` and `notify`.
+field as `[]`). Only additive changes; a breaking change needs a new topic. Consumers: `search`, `notify` and `graph`.
 
 ### search
 
@@ -328,6 +330,27 @@ field as `[]`). Only additive changes; a breaking change needs a new topic. Cons
   per event, `INSERT … ON CONFLICT (post_id) DO NOTHING`. A replayed event never notifies twice.
 - **`GET /outbox?author=&limit=`** (1–50, default 20) → `{author, notifications[{post_id, author, created_at}]}`,
   ordered `created_at DESC, post_id DESC`.
+
+### graph
+
+Neo4j (`bolt://neo4j:7687`, user `neo4j`, password `GRAPH_DB_PASSWORD`); data under `DATA_DIR/neo4j`.
+
+```mermaid
+flowchart LR
+    A((Author)) -->|WROTE| P((Post))
+    P -->|TAGGED| T((Tag))
+```
+
+- **Schema**: `db/graph/V1__constraints.cypher` — unique `Post.id`, `Author.name`, `Tag.name`; applied by the
+  `graph-init` one-shot (`cypher-shell -f`, `IF NOT EXISTS`) before `graph` starts. Append files, never edit one.
+- **Writer**: `EventConsumer` (group `graph`) with the handler `index_post` — one `MERGE` statement for author,
+  post (`SET title, created_at`), `WROTE`, and per tag `MERGE (t:Tag)` + `TAGGED`. Idempotent: a redelivered event
+  changes nothing. A new consumer group starts at the earliest offset, so the graph rebuilds itself from the topic.
+- **`GET /related/{post_id}?limit=`** (1–50, default 10): posts sharing tags (`collect` of shared tag names) and
+  posts by the same author; `score = |shared_tags| + (1 if same_author)`; order `score DESC, id DESC`;
+  404 when the post is not in the graph (unknown, or not indexed yet).
+- **`GET /tags/{tag}?limit=`**: `posts` = posts carrying the tag; `related` = co-occurring tags with
+  `together` = posts carrying both, order `together DESC, tag`; 404 for an unknown tag.
 
 ## 6.11 Database (`db/migrations`)
 
@@ -429,17 +452,18 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATA_DIR` | `/var/tmp/air-harness` | persistent data (postgres, kafka, ollama) |
+| `DATA_DIR` | `/var/tmp/air-harness` | persistent data (postgres, kafka, neo4j, ollama) |
 | `GATEWAY_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 9090 / 11434 | host ports |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | database |
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | service roles |
+| `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | Neo4j graph store |
 | `LOG_LEVEL` | `INFO` | services |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | broker heap |
 | `*_TAG` | pinned | image versions |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | empty (review skipped), `qwen3:8b` | review agent (opt-in) |
 | `REVIEW_DIFF_BASE` | empty | what the reviewer reviews |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, empty | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.5.0, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.5.1, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | host name printed by `run.sh` |
 
 Next: [Demo](07-demo.md) · back to the [documentation index](../README.md).

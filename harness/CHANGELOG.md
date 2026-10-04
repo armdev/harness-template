@@ -1,5 +1,21 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.5.1
+
+The reference system gained a second store: the `graph` service keeps a knowledge graph of authors, posts and
+tags in Neo4j (`GET /api/posts/{id}/related`, `GET /api/tags/{tag}`), built from `content.post.created`.
+The harness follows it:
+
+- **`ddl-outside-migrations` covers Cypher.** `CREATE/DROP CONSTRAINT|INDEX` through `session.run` or
+  `driver.execute_query` in service code is reported like SQL DDL; the message points to `db/graph/*.cypher`,
+  applied by the `graph-init` one-shot. Seeded defect `graph_ddl_in_code.py`.
+- **Contract mutant `graph_limit_dropped`**: a gateway that forwards `/related` without `limit` must fail
+  `test_related_respects_limit`.
+- The topology sensor needed no change: the new service, its key, trust, alerts, pinned Neo4j image and
+  documented variables passed T1–T10 as written.
+- First-run impact on existing projects: the extended semgrep rule fires on Neo4j schema statements in service
+  code; move them to a schema file applied before the service starts.
+
 ## 0.5.0
 
 - **Web console** (`harness/console/`, `make console`, `./run.sh --console` → http://127.0.0.1:8090). Until now the

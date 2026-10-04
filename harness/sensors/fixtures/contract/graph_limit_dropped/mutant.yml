@@ -1,0 +1,5 @@
+# GET /api/posts/{id}/related forwards without the limit: callers get the graph's default page size.
+target: gateway
+file: app.py
+find: 'f"/related/{post_id}", params={"limit": limit}'
+replace: 'f"/related/{post_id}"'

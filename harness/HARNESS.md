@@ -1,4 +1,4 @@
-# Harness template `py-services-pg-kafka` v0.5.0
+# Harness template `py-services-pg-kafka` v0.5.1
 
 A harness template for one topology: Python microservices in one compose file, signed service-to-service
 calls, PostgreSQL with a role per service, Flyway, Kafka, an OpenAI-compatible local LLM.

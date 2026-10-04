@@ -3,7 +3,7 @@
 air-harness состоит из двух половин в одном репозитории:
 
 1. **Harness** — гайды и сенсоры, которые регулируют агента.
-2. **Эталонная система** — приложение, которое регулирует harness (gateway, content, search, notify поверх PostgreSQL
+2. **Эталонная система** — приложение, которое регулирует harness (gateway, content, search, notify поверх PostgreSQL, graph поверх Neo4j
    и Kafka). Она нужна, чтобы у каждого сенсора был реальный код для наблюдения; в вашем проекте её заменяют
    ваши сервисы.
 
@@ -95,13 +95,16 @@ flowchart LR
     gw -->|"подпись Ed25519"| content["content<br/>владеет постами"]
     gw -->|"подпись Ed25519"| search["search<br/>полнотекстовый индекс"]
     gw -->|"подпись Ed25519"| notify["notify<br/>журнал уведомлений"]
+    gw -->|"подпись Ed25519"| kg["graph<br/>граф знаний"]
     content -->|content.post.created| kafka[("Kafka<br/>KRaft")]
     kafka -->|"consumer group search"| search
     kafka -->|"consumer group notify"| notify
+    kafka -->|"consumer group graph"| kg
     content -->|"content_svc · схема content"| pg[(PostgreSQL)]
     search -->|"search_svc · схема search"| pg
     notify -->|"notify_svc · схема notify"| pg
-    prom[Prometheus] -.->|"scrape /metrics"| gw & content & search & notify
+    kg -->|"bolt · Author-WROTE-Post-TAGGED-Tag"| neo[(Neo4j)]
+    prom[Prometheus] -.->|"scrape /metrics"| gw & content & search & notify & kg
 ```
 
 | Сервис | Ответственность | Доступ | Данные | Доверяет |
@@ -110,6 +113,7 @@ flowchart LR
 | content | создаёт, читает и перечисляет посты (с тегами); публикует `content.post.created` | внутренний `:8000` | `content.posts` (роль `content_svc`) | gateway |
 | search | индексирует события; полнотекстовый поиск с фильтрами по автору и тегу | внутренний `:8000` | `search.documents` (роль `search_svc`) | gateway |
 | notify | записывает одно уведомление на каждый новый пост (замена e-mail); выдаёт их список | внутренний `:8000` | `notify.outbox` (роль `notify_svc`) | gateway |
+| graph | граф знаний авторов, постов и тегов; связанные посты, окрестность тега | внутренний `:8000` | Neo4j (`Author`, `Post`, `Tag`; схема в `db/graph`) | gateway |
 
 ### Сквозные решения
 
@@ -130,13 +134,15 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    si["storage-init<br/>one-shot"] --> pg[(postgres)] & kf[(kafka)]
+    si["storage-init<br/>one-shot"] --> pg[(postgres)] & kf[(kafka)] & neo[(neo4j)]
+    neo -->|healthy| gi[graph-init · Cypher<br/>one-shot]
     pg -->|healthy| mig["migrate · Flyway<br/>one-shot"]
     kf -->|healthy| ki["kafka-init<br/>one-shot"]
     sk["service-keys<br/>one-shot"]
     sk & mig & ki -->|completed| content & search & notify
     sk --> gw[gateway]
-    content & search & notify -->|healthy| gw
+    sk & gi & ki -->|completed| kg
+    content & search & notify & kg -->|healthy| gw
 ```
 
 Опциональные профили: `observability` (Prometheus), `local-llm` (Ollama), `tools` (контейнеры contract, unit,

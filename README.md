@@ -135,8 +135,8 @@ harness/
   tests/                      tests of the harness itself (make harness-test)
   CHANGELOG.md  HARNESS.md    releases with first-run impact · design, versioning, steering loop
 docker-compose.yml            the reference system's architecture (checked by the topology sensor)
-services/  libs/common/       gateway · content · search · notify; signed calls, logging, metrics
-db/migrations/                Flyway
+services/  libs/common/       gateway · content · search · notify · graph (Neo4j); signed calls, logging, metrics
+db/migrations/  db/graph/     Flyway (PostgreSQL) · Cypher constraints (Neo4j, applied by graph-init)
 contract/  eval/  tools/      API specification · search-quality eval · test tooling image
 infra/prometheus/             scrape config and alert rules
 ```

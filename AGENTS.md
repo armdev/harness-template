@@ -6,9 +6,11 @@ architecture: services, their identities, who may call whom, and which database 
 ```
 client ──HTTP──> gateway ──signed──> content ──Kafka: content.post.created──┬──> search
                     ├─────signed──────────────────────────────────────────────┼──> search
-                    └─────signed──────────────────────────────────────────────└──> notify
+                    ├─────signed──────────────────────────────────────────────┼──> notify
+                    └─────signed──────────────────────────────────────────────└──> graph
         content, search, notify ─ postgres: one role and schema each (content_svc/content, search_svc/search,
                                   notify_svc/notify)
+        graph ─ neo4j: (:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag); its schema in db/graph (graph-init)
 ```
 
 ## Structure you must preserve
@@ -16,7 +18,7 @@ client ──HTTP──> gateway ──signed──> content ──Kafka: conten
 - Service-to-service calls are signed (Ed25519, `common.service_auth`). A callee accepts only the callers
   listed in its `TRUSTED_CALLERS`. New call = `SignedClient` + callee's `TRUSTED_CALLERS` + key in `service-keys`.
 - Each service has its own database role (`<name>_svc`) and schema. Schema changes go only into `db/migrations`
-  (Flyway); a committed migration is never edited.
+  (Flyway); a committed migration is never edited. The graph store's constraints go only into `db/graph/*.cypher`.
 - Kafka topics are created by `kafka-init`; auto-create is off. New topic = new entry there.
 - The `contract/` suite is the specification of the public API. Change it only when the task asks for new behaviour.
 - Persistent data lives under `DATA_DIR`, never inside the repository.
