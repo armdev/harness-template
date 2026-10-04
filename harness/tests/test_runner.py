@@ -140,7 +140,7 @@ def test_stats_ignore_skipped_runs(runner, tmp_path, capsys):
     rows = [{"id": "optional-llm", "status": "skipped", "seconds": 0.1}] * 5 + \
            [{"id": "optional-llm", "status": "fail", "seconds": 1.0}]
     (out / "ledger.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
-    assert runner.cmd_stats(argparse.Namespace(min_runs=20)) == 0
+    assert runner.cmd_stats(argparse.Namespace(min_runs=20, window=10)) == 0
     line = next(ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("optional-llm"))
     cols = line.split()
     assert cols[1:5] == ["1", "1", "100%", "0"] and cols[6] == "5"      # runs, fired, rate, blind, …, skipped
@@ -179,3 +179,48 @@ def test_selftest_of_an_unconfigured_sensor_is_skipped_not_blind(runner, tmp_pat
     setup(tmp_path, manifest)
     assert runner.cmd_selftest(argparse.Namespace(only=None, plane="live")) == 0
     assert "not configured" in capsys.readouterr().out
+
+
+def ledger(tmp_path, rows):
+    out = tmp_path / ".harness"
+    out.mkdir(exist_ok=True)
+    (out / "ledger.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return out
+
+
+def test_stats_uses_selftest_proof_for_a_sensor_that_never_fires(runner, tmp_path, capsys):
+    out = ledger(tmp_path, [{"id": "quiet", "status": "pass", "seconds": 0.1}] * 25)
+    (out / "selftest.json").write_text(json.dumps({"quiet": {"verdict": "proven", "rev": "abc", "ts": 0}}))
+    runner.cmd_stats(argparse.Namespace(min_runs=20, window=10))
+    assert "selftest proved it can" in capsys.readouterr().out
+    (out / "selftest.json").write_text(json.dumps({"quiet": {"verdict": "blind", "rev": "abc", "ts": 0}}))
+    runner.cmd_stats(argparse.Namespace(min_runs=20, window=10))
+    assert "BLIND in selftest" in capsys.readouterr().out
+
+
+def test_old_blindness_ages_out_of_the_steering_hint(runner, tmp_path, capsys):
+    rows = ([{"id": "s", "status": "unavailable", "seconds": 0.1}] * 5
+            + [{"id": "s", "status": "pass", "seconds": 0.1}] * 10)
+    ledger(tmp_path, rows)
+    runner.cmd_stats(argparse.Namespace(min_runs=20, window=10))
+    assert "blind too often" not in capsys.readouterr().out
+
+
+def test_selftest_records_its_verdicts(runner, tmp_path):
+    fx = tmp_path / "fx"
+    fx.mkdir()
+    (fx / "bad.txt").write_text("# expect: BOOM\n")
+    setup(tmp_path, {"harness": 1, "categories": ["maintainability"], "guides": [], "sensors": [{
+        "id": "grep", "kind": "computational", "category": "maintainability", "plane": "static",
+        "stages": ["pre-commit"], "run": "true",
+        "selftest": {"fixtures": "fx", "run": "echo BOOM; exit 1"}}]})
+    runner.cmd_selftest(argparse.Namespace(only=None, plane="all"))
+    assert json.loads((tmp_path / ".harness" / "selftest.json").read_text())["grep"]["verdict"] == "proven"
+
+
+def test_recent_skips_age_out_old_blindness(runner, tmp_path, capsys):
+    rows = ([{"id": "llm", "status": "unavailable", "seconds": 0.1}] * 4
+            + [{"id": "llm", "status": "skipped", "seconds": 0.1}] * 10)
+    ledger(tmp_path, rows)
+    runner.cmd_stats(argparse.Namespace(min_runs=20, window=10))
+    assert "blind too often" not in capsys.readouterr().out

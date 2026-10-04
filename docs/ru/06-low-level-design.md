@@ -22,7 +22,7 @@
 | `run --stage S [--plane P] [--only ID]` | запускает выбранные сенсоры, пишет результаты, журнал, отчёт | 0 зелёный · 1 блокирующий сенсор упал **или слеп** · 2 неизвестный id в `--only` · 3 сенсор из `--only` принадлежит другой плоскости |
 | `selftest [--plane P] [--only ID]` | прогоняет `selftest.run` каждого сенсора на каждой фикстуре; только сенсоры своей плоскости (`HARNESS_PLANE`), для остальных печатает, где они проверяются | 0 все срабатывают / молчат · 1 какой-то сенсор слеп или шумит |
 | `coverage` | матрица гайды × сенсоры, проверки согласованности | 0 согласовано · 1 есть проблемы |
-| `stats [--min-runs N]` | таблица управления по журналу (`N` по умолчанию 20) | 0 |
+| `stats [--min-runs N] [--window W]` | таблица управления по журналу и последним вердиктам selftest (`N` 20, `W` 10) | 0 |
 | `list` | одна строка на сенсор | 0 |
 
 ### Выполнение сенсора
@@ -104,14 +104,16 @@ flowchart TD
 По каждому сенсору: запуски, срабатывания (= провалы), доля, слепые запуски, среднее время, пропуски. Пропущенные
 запуски считаются отдельно и не входят ни в одну долю (сенсор, который только пропускался, помечается *never ran*).
 Порядок подсказок:
-*слеп > 20 %* → чинить окружение; *доля > 30 %* → усилить связанный гайд; *ни разу не сработал за ≥ `--min-runs`
-запусков* → запустить selftest, понизить или удалить.
+*слеп в > 20 % последних `--window` запусков (по умолчанию 10, пропуски учитываются)* → чинить окружение;
+*доля > 30 %* → усилить связанный гайд; *ни разу не сработал за ≥ `--min-runs` запусков* → смотреть
+`.harness/selftest.json` (его пишет каждый selftest): *proven* → код здесь чист, подумать о более поздней стадии;
+*blind/noisy* → чинить сенсор; вердикта нет → запустить selftest.
 
 ## 6.2 Схема манифеста (`harness.yaml`)
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.4.1 }
+template: { name: py-services-pg-kafka, version: 0.4.2 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <уникальный>             # на него ссылается sensors.pairs_with
@@ -135,7 +137,7 @@ sensors:
 
 ## 6.3 Контейнеры сенсоров (`compose.harness.yml`, `harness.mk`)
 
-Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.4.1}`, профиль `harness`,
+Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.4.2}`, профиль `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (make подставляет вызвавшего пользователя), `read_only: true`,
 `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, репозиторий в `/work:ro` и `./.harness` в `/out`.
 
@@ -443,7 +445,7 @@ pull request и `HEAD~1` для push.
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | пусто (ревью пропускается), `qwen3:8b` | агент-ревьюер (включается явно) |
 | `REVIEW_DIFF_BASE` | пусто | что именно ревьюит ревьюер |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, пусто | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.4.1, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.4.2, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
 Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).

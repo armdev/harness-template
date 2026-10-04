@@ -1,5 +1,17 @@
 # Changelog — harness template `py-services-pg-kafka`
 
+## 0.4.2
+
+Steering signals that were wrong, found by reading `make harness-stats` on this repository.
+
+- **"never fired: run selftest" for sensors selftest had already proven** (`migrations`, `unit`). Every selftest
+  now records its verdict per sensor in `.harness/selftest.json` (planes merge); stats names it: *proven* → "clean
+  code here; consider a later stage", *blind/noisy* → "fix the sensor", none → "run selftest".
+- **"blind too often" for good**: `review-agent` stayed flagged for blind runs from before 0.3.0 (when an
+  unconfigured LLM counted as blind), although every run since was a clean SKIP. The hint now looks at the last
+  `--window` runs (default 10, skips included); the table still shows totals.
+- First-run impact on existing projects: none.
+
 ## 0.4.1
 
 Three adoption bugs found by re-running the 0.4.0 installer on a project that had already customised its harness.

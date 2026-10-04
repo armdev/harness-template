@@ -22,7 +22,7 @@ Single file, standard library + PyYAML. The same script runs in the sensor conta
 | `run --stage S [--plane P] [--only ID]` | runs the selected sensors, writes results, ledger, report | 0 green · 1 a blocking sensor failed **or is blind** · 2 unknown `--only` id · 3 `--only` sensor belongs to another plane |
 | `selftest [--plane P] [--only ID]` | runs every sensor's `selftest.run` on each fixture; only the sensors of its plane (`HARNESS_PLANE`), the others print where they are proven | 0 all fire / stay quiet · 1 a sensor is blind or noisy |
 | `coverage` | guide × sensor matrix, consistency checks | 0 consistent · 1 problems |
-| `stats [--min-runs N]` | steering table from the ledger (`N` default 20) | 0 |
+| `stats [--min-runs N] [--window W]` | steering table from the ledger and the last selftest verdicts (`N` 20, `W` 10) | 0 |
 | `list` | one line per sensor | 0 |
 
 ### Sensor execution
@@ -100,15 +100,16 @@ blocking · `UNPROVEN` static computational sensor without seeded defects.
 ### Stats — steering hints
 
 Per sensor: runs, fired (= failed), rate, blind, average seconds, skipped. Skipped runs are counted apart and left
-out of every rate (a sensor that only ever skipped is listed as *never ran*). Hint order: *blind > 20 %* → fix the
-environment; *rate > 30 %* → strengthen the paired guide; *never fired in ≥ `--min-runs` runs* → run selftest,
-demote or remove.
+out of every rate (a sensor that only ever skipped is listed as *never ran*). Hint order: *blind in > 20 % of the last
+`--window` runs (default 10, skips included)* → fix the environment; *rate > 30 %* → strengthen the paired guide;
+*never fired in ≥ `--min-runs` runs* → read `.harness/selftest.json` (written by every selftest): *proven* → the code
+is clean there, consider a later stage; *blind/noisy* → fix the sensor; no verdict → run selftest.
 
 ## 6.2 Manifest schema (`harness.yaml`)
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.4.1 }
+template: { name: py-services-pg-kafka, version: 0.4.2 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <unique>                 # referenced by sensors.pairs_with
@@ -132,7 +133,7 @@ sensors:
 
 ## 6.3 Sensor containers (`compose.harness.yml`, `harness.mk`)
 
-Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.4.1}`, profile `harness`,
+Both services use `image: ${HARNESS_IMAGE:-air-harness-runner:0.4.2}`, profile `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (set by make to the invoking user), `read_only: true`, `tmpfs: /tmp`,
 `cap_drop: [ALL]`, `no-new-privileges`, the repository at `/work:ro` and `./.harness` at `/out`.
 
@@ -438,7 +439,7 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | empty (review skipped), `qwen3:8b` | review agent (opt-in) |
 | `REVIEW_DIFF_BASE` | empty | what the reviewer reviews |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, empty | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.4.1, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | runner 0.4.2, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | host name printed by `run.sh` |
 
 Next: [Demo](07-demo.md) · back to the [documentation index](../README.md).
