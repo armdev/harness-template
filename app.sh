@@ -45,6 +45,39 @@ preflight() {
   docker compose version >/dev/null 2>&1 || die "docker compose v2 is missing: install the compose plugin"
 }
 
+port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }      # bash built-in: no nc or lsof needed
+running() { "${DC[@]}" --profile observability --profile local-llm ps --status running --services 2>/dev/null | grep -qx "$1"; }
+
+# check_ports SERVICE:PORT:VARIABLE ... — a host port held by another program stops the start with what to change,
+# instead of a half-started stack and docker's "address already in use".
+check_ports() {
+  local spec svc port var
+  for spec in "$@"; do
+    IFS=: read -r svc port var <<< "$spec"
+    running "$svc" && continue                                     # our own container already holds it
+    port_in_use "$port" && die "port $port (for $svc) is already used by another program: free it, or set $var in .env"
+  done
+  return 0
+}
+
+OLLAMA_URL_IN_STACK=http://ollama:11434/v1
+# use_host_ollama PORT — an Ollama already runs on this machine (installed natively): Chat uses it, none is started.
+use_host_ollama() {
+  local current
+  current=$(env_value CHAT_LLM_URL "$OLLAMA_URL_IN_STACK")
+  if [ "$current" = "$OLLAMA_URL_IN_STACK" ]; then
+    export CHAT_LLM_URL="http://host.docker.internal:$1/v1"
+    ok "Ollama is already running on port $1: Chat uses it ($CHAT_LLM_URL); no second one is started"
+  else
+    ok "Ollama is already running on port $1: no second one is started; Chat keeps CHAT_LLM_URL=$current"
+  fi
+}
+
+# host_ollama_reachable — from inside the stack; a native Ollama on Linux listens on 127.0.0.1 only by default.
+host_ollama_reachable() {
+  "${DC[@]}" exec -T chat python -c "import os, urllib.request; urllib.request.urlopen(os.environ['CHAT_LLM_URL'].removesuffix('/v1') + '/api/tags', timeout=3)" >/dev/null 2>&1
+}
+
 smoke() {
   printf '\n%sSmoke test%s (create → read → search → related, through the public API)\n' "$B" "$N"
   command -v curl >/dev/null || { fail "curl not found: skipped"; return 0; }
@@ -119,16 +152,28 @@ EOF
 cmd="${1:-up}"; [ $# -gt 0 ] && shift
 case "$cmd" in
   up)
-    profile=() build=--build llm=0
+    obs=0 llm=0 build=--build
     for arg in "$@"; do
       case "$arg" in
-        --observability) profile+=(--profile observability) ;;
-        --llm) profile+=(--profile local-llm); llm=1 ;;
+        --observability) obs=1 ;;
+        --llm) llm=1 ;;
         --no-build) build=--no-build ;;
         *) die "unknown option: $arg (see ./app.sh help)" ;;
       esac
     done
     preflight
+    check_ports "gateway:$(env_value GATEWAY_PORT 8080):GATEWAY_PORT" "web:$(env_value WEB_PORT 8081):WEB_PORT"
+    [ $obs = 1 ] && check_ports "prometheus:$(env_value PROMETHEUS_PORT 9090):PROMETHEUS_PORT"
+    host_ollama=0 ollama_port=$(env_value OLLAMA_PORT 11434)
+    if [ $llm = 1 ] && ! running ollama && port_in_use "$ollama_port"; then
+      curl -fsS -m 3 -o /dev/null "http://127.0.0.1:$ollama_port/api/tags" 2>/dev/null \
+        || die "port $ollama_port is used by another program, not Ollama: free it, or set OLLAMA_PORT in .env"
+      host_ollama=1
+      use_host_ollama "$ollama_port"
+    fi
+    profile=()
+    [ $obs = 1 ] && profile+=(--profile observability)
+    [ $llm = 1 ] && [ $host_ollama = 0 ] && profile+=(--profile local-llm)
     printf '%sRAG application%s: building and starting (first run downloads images: a few minutes)\n' "$B" "$N"
     run "${DC[@]}" ${profile[@]+"${profile[@]}"} up -d "$build" --wait || die "the application did not become healthy: ./app.sh status; ./app.sh logs <service>"
     ok "all services healthy"
@@ -136,8 +181,21 @@ case "$cmd" in
     if [ $llm = 1 ]; then
       model=$(env_value CHAT_MODEL qwen3:8b)
       printf '\n%sLocal model for Chat%s (%s; the first pull downloads several GB)\n' "$B" "$N" "$model"
-      run "${DC[@]}" --profile local-llm exec -T ollama ollama pull "$model" >/dev/null && ok "model $model ready" \
-        || { fail "could not pull $model: Chat answers with the retrieved posts only"; status=1; }
+      if [ $host_ollama = 1 ]; then
+        curl -fsS -m 3600 "http://127.0.0.1:$ollama_port/api/pull" -d "{\"model\":\"$model\",\"stream\":false}" >/dev/null \
+          && ok "model $model ready in your Ollama" || { fail "could not pull $model into your Ollama: ollama pull $model"; status=1; }
+        if ! host_ollama_reachable; then
+          fail "the containers cannot reach your Ollama: it listens on 127.0.0.1 only (the default on Linux)"
+          printf '    %s\n' "make it listen on all interfaces: sudo systemctl edit ollama  →  [Service] Environment=OLLAMA_HOST=0.0.0.0" \
+            "then: sudo systemctl restart ollama && ./app.sh up --llm   (or stop it, and ./app.sh up --llm starts its own)"
+          status=1
+        fi
+        grep -qE '^CHAT_LLM_URL=http://host.docker.internal' .env 2>/dev/null \
+          || printf '    %s\n' "to keep Chat on it without --llm: echo 'CHAT_LLM_URL=$CHAT_LLM_URL' >> .env"
+      else
+        run "${DC[@]}" --profile local-llm exec -T ollama ollama pull "$model" >/dev/null && ok "model $model ready" \
+          || { fail "could not pull $model: Chat answers with the retrieved posts only"; status=1; }
+      fi
     fi
     urls
     [ $status = 0 ] && printf '\n%s✔ the application is up.%s Stop it with ./app.sh down\n' "$G" "$N"
