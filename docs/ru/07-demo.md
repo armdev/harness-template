@@ -32,7 +32,26 @@
 
 ![run.sh: адреса и следующие шаги](../assets/terminal-run-urls.png)
 
-## 2. API — http://localhost:8080
+## 2. Портал — http://localhost:8081
+
+rag-web, собственный клиент приложения (сервис `web`), снято в Chromium после загрузки примеров постов.
+**Анализ**: счётчики, карта тем (теги с общими постами), топ тегов и авторов, сильнейшие пары.
+
+![rag-web: анализ](../assets/web-analyze.png)
+
+**Пост**: текст, связанные посты по общим тегам и автору, окрестность в графе.
+
+![rag-web: пост](../assets/web-post.png)
+
+**Обозреватель графа**: начат с `#neo4j`, затем раскрыт один пост: его автор, теги и связанные посты.
+
+![rag-web: обозреватель графа](../assets/web-graph.png)
+
+**Публикация**: опубликовать и увидеть, как каждый консьюмер `content.post.created` догоняет.
+
+![rag-web: публикация](../assets/web-write.png)
+
+## 3. API — http://localhost:8080
 
 Корень перенаправляет на Swagger UI. Gateway — единственный публичный сервис; все вызовы за ним подписаны.
 
@@ -46,7 +65,7 @@ ReDoc по адресу `/redoc`:
 
 ![ReDoc](../assets/redoc.png)
 
-## 3. Наблюдаемость — http://localhost:9090
+## 4. Наблюдаемость — http://localhost:9090
 
 | Все сервисы опрашиваются и UP | Правила алертов на сервис (их требует topology T7) |
 |---|---|
@@ -57,7 +76,7 @@ ReDoc по адресу `/redoc`:
 
 ![График Prometheus](../assets/prometheus-graph.png)
 
-## 4. Harness ловит ошибку агента
+## 5. Harness ловит ошибку агента
 
 Сценарий: агент добавляет сервис `notify`, который вызывает `content`, и собирает SQL-запрос через f-string. Он
 забывает про `TRUSTED_CALLERS`, ключ сервиса, правила алертов и новую переменную в `.env.example`.
@@ -82,7 +101,7 @@ ReDoc по адресу `/redoc`:
 |---|---|
 | ![make harness-fast GREEN](../assets/terminal-harness-fast-green.png) | ![отчёт GREEN](../assets/report-green.png) |
 
-## 5. Изучить и передать агенту — `./help.sh`
+## 6. Изучить и передать агенту — `./help.sh`
 
 | `./help.sh` | `./help.sh prompts` |
 |---|---|
@@ -92,7 +111,7 @@ ReDoc по адресу `/redoc`:
 
 ![help.sh prompt 02](../assets/terminal-prompt-02.png)
 
-## 6. Веб-консоль
+## 7. Веб-консоль
 
 `./run.sh --console` → http://127.0.0.1:8090. Снято при работающем стеке в Chromium (Playwright).
 

@@ -86,3 +86,66 @@ def test_tag_neighbourhood_counts_posts_and_co_occurring_tags(api, author):
 def test_unknown_tag_is_404_and_invalid_tag_is_422(api):
     assert api.get(f"/api/tags/{tag()}").status_code == 404
     assert api.get("/api/tags/Not_Valid").status_code == 422
+
+
+def overview(api, **params):
+    r = api.get("/api/graph/overview", params=params)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_overview_counts_grow_with_new_posts_authors_and_tags(api, author):
+    before = overview(api)
+    post(api, author, "Overview", [tag(), tag()])
+
+    def grown():
+        now = overview(api)
+        return (now["posts"] >= before["posts"] + 1 and now["authors"] >= before["authors"] + 1
+                and now["tags"] >= before["tags"] + 2 and now)
+
+    assert eventually(grown), "the overview did not count the new post, author and tags in time"
+
+
+def test_overview_ranks_top_tags_and_authors_and_links_only_top_tags(api, author):
+    post(api, author, "Ranked", [tag()])
+    body = eventually(lambda: (b := overview(api, limit=5))["posts"] > 0 and b)
+    assert body, "the graph is empty"
+    tags, authors = body["top_tags"], body["top_authors"]
+    assert 1 <= len(tags) <= 5 and 1 <= len(authors) <= 5
+    assert [t["posts"] for t in tags] == sorted((t["posts"] for t in tags), reverse=True)
+    assert [a["posts"] for a in authors] == sorted((a["posts"] for a in authors), reverse=True)
+    names = {t["tag"] for t in tags}
+    for link in body["tag_links"]:
+        assert link["source"] in names and link["target"] in names and link["source"] < link["target"]
+        assert link["together"] >= 1
+    togethers = [link["together"] for link in body["tag_links"]]
+    assert togethers == sorted(togethers, reverse=True)
+
+
+def test_overview_validates_limit(api):
+    assert api.get("/api/graph/overview", params={"limit": 0}).status_code == 422
+    assert api.get("/api/graph/overview", params={"limit": 51}).status_code == 422
+
+
+def test_tag_posts_lists_the_newest_posts_carrying_the_tag(api, author):
+    a = tag()
+    first = post(api, author, "First", [a])
+    second = post(api, author + "-b", "Second", [a, tag()])
+    post(api, author, "Other tag", [tag()])
+
+    def ready():
+        r = api.get(f"/api/tags/{a}/posts")
+        return r.status_code == 200 and len(r.json()["posts"]) == 2 and r.json()
+
+    body = eventually(ready)
+    assert body, "the graph did not list the tag's posts in time"
+    assert body["tag"] == a
+    assert body["posts"] == [{"id": second["id"], "title": "Second", "author": author + "-b"},
+                             {"id": first["id"], "title": "First", "author": author}]
+    assert len(api.get(f"/api/tags/{a}/posts", params={"limit": 1}).json()["posts"]) == 1
+
+
+def test_tag_posts_of_an_unknown_tag_is_404_and_invalid_is_422(api):
+    assert api.get(f"/api/tags/{tag()}/posts").status_code == 404
+    assert api.get("/api/tags/Bad_Tag/posts").status_code == 422
+    assert api.get("/api/tags/kafka/posts", params={"limit": 0}).status_code == 422

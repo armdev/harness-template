@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from common.events import EventConsumer
 from common.service_auth import require_caller
 from common.telemetry import create_app
-from graph import index_post, related, tag_neighbourhood
+from graph import index_post, overview, related, tag_neighbourhood, tagged_posts
 
 log = logging.getLogger(__name__)
 
@@ -67,6 +67,42 @@ class TagNeighbourhood(BaseModel):
     related: list[CoTag]
 
 
+class TaggedPost(BaseModel):
+    id: int
+    title: str
+    author: str
+
+
+class TaggedPosts(BaseModel):
+    tag: str
+    posts: list[TaggedPost]
+
+
+class TagCount(BaseModel):
+    tag: str
+    posts: int
+
+
+class AuthorCount(BaseModel):
+    author: str
+    posts: int
+
+
+class TagLink(BaseModel):
+    source: str
+    target: str
+    together: int
+
+
+class Overview(BaseModel):
+    posts: int
+    authors: int
+    tags: int
+    top_tags: list[TagCount]
+    top_authors: list[AuthorCount]
+    tag_links: list[TagLink]
+
+
 @app.get("/related/{post_id}", response_model=Related)
 def related_posts(post_id: int, limit: int = Query(10, ge=1, le=50), _caller: str = Depends(auth)) -> Related:
     found = related(driver, post_id, limit)
@@ -82,3 +118,17 @@ def tag(tag: str = Path(pattern=TAG_PATTERN), limit: int = Query(10, ge=1, le=50
     if found is None:
         raise HTTPException(status_code=404, detail="unknown tag")
     return TagNeighbourhood(**found)
+
+
+@app.get("/tags/{tag}/posts", response_model=TaggedPosts)
+def posts_of_tag(tag: str = Path(pattern=TAG_PATTERN), limit: int = Query(20, ge=1, le=50),
+                 _caller: str = Depends(auth)) -> TaggedPosts:
+    found = tagged_posts(driver, tag, limit)
+    if found is None:
+        raise HTTPException(status_code=404, detail="unknown tag")
+    return TaggedPosts(tag=tag, posts=[TaggedPost(**r) for r in found])
+
+
+@app.get("/overview", response_model=Overview)
+def graph_overview(limit: int = Query(10, ge=1, le=50), _caller: str = Depends(auth)) -> Overview:
+    return Overview(**overview(driver, limit))

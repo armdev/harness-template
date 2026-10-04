@@ -15,3 +15,5 @@ scrape_configs:
     static_configs: [{ targets: ["notify:8000"] }]
   - job_name: graph
     static_configs: [{ targets: ["graph:8000"] }]
+  - job_name: web
+    static_configs: [{ targets: ["web:8000"] }]

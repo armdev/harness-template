@@ -86,7 +86,8 @@ skills (`harness-report`, `harness-steer`), which `harness-coverage` reports hon
 | content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`, `GET /posts?author=`; writes `content.posts`; produces `content.post.created` |
 | search | `services/search/app.py`, `indexer.py` | `GET /search` (author and tag filters); `EventConsumer` with a handler upserting `search.documents`; Postgres full-text ranking |
 | notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; `EventConsumer` with a handler recording one `notify.outbox` row per post (idempotent) |
-| graph | `services/graph/app.py`, `graph.py` | `GET /related/{post_id}`, `GET /tags/{tag}`; `EventConsumer` with a handler MERGEing `(:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag)` in Neo4j (idempotent) |
+| web (rag-web) | `services/web/app.py`, `static/` | the portal: browser client (analyze, search, graph explorer, write, post/tag/author pages) and a signed `/api/*` proxy to the gateway |
+| graph | `services/graph/app.py`, `graph.py` | `GET /related/{post_id}`, `GET /tags/{tag}`, `GET /tags/{tag}/posts`, `GET /overview`; `EventConsumer` with a handler MERGEing `(:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag)` in Neo4j (idempotent) |
 | Graph schema | `db/graph/*.cypher`, `graph-init` | uniqueness constraints on `Post.id`, `Author.name`, `Tag.name`; applied with `cypher-shell` before `graph` starts |
 | Migrations | `db/migrations/V1..V7` | roles `content_svc`, `search_svc`, `notify_svc`; schemas `content`, `search`, `notify`; tables, indexes, tags, grants |
 | One-shots | `docker-compose.yml` | `storage-init` (DATA_DIR layout), `service-keys` (identities), `migrate` (Flyway), `kafka-init` (topics) |

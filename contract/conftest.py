@@ -7,6 +7,7 @@ import pytest
 
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://localhost:8080")
 CONTENT_URL = os.environ.get("CONTENT_URL", "http://localhost:8000")
+WEB_URL = os.environ.get("WEB_URL", "http://localhost:8081")
 
 
 @pytest.fixture(scope="session")

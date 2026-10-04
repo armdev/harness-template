@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The application alone: the RAG system (gateway, content, search, notify, graph + postgres, kafka, neo4j),
+# The application alone: the RAG system (web, gateway, content, search, notify, graph + postgres, kafka, neo4j),
 # without the harness, the console or make. Needs only docker (compose v2) and curl.
 #
 #   ./app.sh [up]            build + start the application, wait until healthy, smoke-test it, print URLs
@@ -30,6 +30,7 @@ env_value() {   # env_value NAME DEFAULT → value from the environment, else .e
 }
 HOST=$(env_value PUBLIC_HOST localhost)
 API="http://$HOST:$(env_value GATEWAY_PORT 8080)"
+WEB="http://$HOST:$(env_value WEB_PORT 8081)"
 PROMETHEUS="http://$HOST:$(env_value PROMETHEUS_PORT 9090)"
 DC=(docker compose -f docker-compose.yml)   # only the application's compose file, never the harness overlay
 
@@ -61,15 +62,18 @@ smoke() {
   done
   [ $searched = 1 ] && ok "post $id found by search (indexed via Kafka)" || { fail "post $id not searchable after 20s: ./app.sh logs search"; return 1; }
   [ $graphed = 1 ] && ok "post $id in the knowledge graph (tag $marker)" || { fail "post $id not in the graph after 20s: ./app.sh logs graph"; return 1; }
+  curl -fsS "$WEB/api/posts/$id" | grep -q "\"id\":$id" && ok "web portal serves post $id through the gateway" \
+    || { fail "the web portal does not reach the gateway: ./app.sh logs web"; return 1; }
 }
 
 urls() {
   printf '\n%sURLs%s\n' "$B" "$N"
+  printf '  %-24s %s%s%s\n' "Web portal (rag-web)" "$C" "$WEB" "$N  analyze · search · graph · write"
   printf '  %-24s %s%s%s\n' "API docs (Swagger UI)" "$C" "$API/docs" "$N"
   printf '  %-24s %s%s%s\n' "OpenAPI schema" "$C" "$API/openapi.json" "$N"
   printf '  %-24s %s\n' "  posts" "POST $API/api/posts · GET $API/api/posts/{id} · GET $API/api/posts?author="
   printf '  %-24s %s\n' "  search (RAG retrieval)" "GET  $API/api/search?q=kafka"
-  printf '  %-24s %s\n' "  knowledge graph" "GET  $API/api/posts/{id}/related · GET $API/api/tags/{tag}"
+  printf '  %-24s %s\n' "  knowledge graph" "GET  $API/api/posts/{id}/related · /api/tags/{tag}[/posts] · /api/graph/overview"
   printf '  %-24s %s\n' "  notifications" "GET  $API/api/notifications?author="
   if "${DC[@]}" --profile observability ps --status running --services 2>/dev/null | grep -qx prometheus; then
     printf '  %-24s %s%s%s\n' "Prometheus" "$C" "$PROMETHEUS" "$N"
@@ -91,7 +95,7 @@ export_app() {
 # RAG application
 
 Posts (content), full-text search (search), notifications (notify) and a knowledge graph (graph, Neo4j)
-behind one public gateway. Services call each other with Ed25519-signed requests; posts flow to search,
+behind one public gateway, and a web portal (web) for all of it: http://localhost:8081. Services call each other with Ed25519-signed requests; posts flow to search,
 notify and graph over Kafka (`content.post.created`).
 
     ./app.sh            build + start, smoke test, URLs   (needs docker with compose v2, and curl)

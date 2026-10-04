@@ -91,3 +91,14 @@ async def related_posts(post_id: int, limit: int = Query(10, ge=1, le=50)) -> Re
 async def tag_neighbourhood(tag: str = Path(pattern=r"^[a-z0-9-]{1,32}$"),
                             limit: int = Query(10, ge=1, le=50)) -> Response:
     return await forward("graph", "GET", f"/tags/{tag}", params={"limit": limit})
+
+
+@app.get("/api/tags/{tag}/posts", summary="The newest posts carrying a tag (knowledge graph)")
+async def tag_posts(tag: str = Path(pattern=r"^[a-z0-9-]{1,32}$"), limit: int = Query(20, ge=1, le=50)) -> Response:
+    return await forward("graph", "GET", f"/tags/{tag}/posts", params={"limit": limit})
+
+
+@app.get("/api/graph/overview",
+         summary="The knowledge graph at a glance: sizes, biggest tags and authors, how the top tags co-occur")
+async def graph_overview(limit: int = Query(10, ge=1, le=50)) -> Response:
+    return await forward("graph", "GET", "/overview", params={"limit": limit})

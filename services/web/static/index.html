@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rag-web</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='4' cy='4' r='3' fill='%233b5bdb'/%3E%3Ccircle cx='12' cy='6' r='3' fill='%230ca678'/%3E%3Ccircle cx='7' cy='12' r='3' fill='%23e8590c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <a class="brand" href="#/"><span class="dots"><i></i><i></i><i></i></span> rag-web</a>
+  <form id="quick-search" role="search">
+    <input id="quick-q" type="search" placeholder="Search posts…  (try: kafka)" aria-label="Search posts">
+  </form>
+  <nav id="nav">
+    <a href="#/" data-route="">Analyze</a>
+    <a href="#/search" data-route="search">Search</a>
+    <a href="#/graph" data-route="graph">Graph</a>
+    <a href="#/write" data-route="write" class="cta">Write</a>
+  </nav>
+</header>
+<main id="view" aria-live="polite"></main>
+<footer>rag-web · a client of the public API (gateway) · posts → Kafka → search, graph, notify</footer>
+<script src="/static/graph.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

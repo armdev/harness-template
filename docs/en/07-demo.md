@@ -30,7 +30,26 @@ advisory, so it never blocks.
 
 ![run.sh: URLs and next steps](../assets/terminal-run-urls.png)
 
-## 2. The API — http://localhost:8080
+## 2. The portal — http://localhost:8081
+
+rag-web, the application's own client (service `web`), captured with Chromium after loading the sample posts.
+**Analyze**: counts, the topic map (tags that share posts), top tags and authors, strongest pairs.
+
+![rag-web analyze](../assets/web-analyze.png)
+
+**Post**: the post, its related posts ranked by shared tags and author, and its neighbourhood in the graph.
+
+![rag-web post](../assets/web-post.png)
+
+**Graph explorer**: started from `#neo4j`, then one post clicked open: its author, tags and related posts.
+
+![rag-web graph explorer](../assets/web-graph.png)
+
+**Write**: publish, then watch every consumer of `content.post.created` catch up.
+
+![rag-web write](../assets/web-write.png)
+
+## 3. The API — http://localhost:8080
 
 The root redirects to Swagger UI. The gateway is the only public service; every call behind it is signed.
 
@@ -44,7 +63,7 @@ ReDoc at `/redoc`:
 
 ![ReDoc](../assets/redoc.png)
 
-## 3. Observability — http://localhost:9090
+## 4. Observability — http://localhost:9090
 
 | Every service scraped and UP | Alert rules per service (topology T7 enforces them) |
 |---|---|
@@ -55,7 +74,7 @@ validation failures the traffic generator sent on purpose:
 
 ![Prometheus graph](../assets/prometheus-graph.png)
 
-## 4. The harness catches an agent's mistake
+## 5. The harness catches an agent's mistake
 
 The scenario: an agent adds a `notify` service that calls `content`, and builds a SQL query with an f-string.
 It forgets `TRUSTED_CALLERS`, the service key, alert rules and the new variable in `.env.example`.
@@ -80,7 +99,7 @@ exits 2 with the report, so the agent goes back to work:
 |---|---|
 | ![make harness-fast GREEN](../assets/terminal-harness-fast-green.png) | ![report GREEN](../assets/report-green.png) |
 
-## 5. Learn it and hand it to an agent — `./help.sh`
+## 6. Learn it and hand it to an agent — `./help.sh`
 
 | `./help.sh` | `./help.sh prompts` |
 |---|---|
@@ -90,7 +109,7 @@ exits 2 with the report, so the agent goes back to work:
 
 ![help.sh prompt 02](../assets/terminal-prompt-02.png)
 
-## 6. The web console
+## 7. The web console
 
 `./run.sh --console` → http://127.0.0.1:8090. Captured against the running stack with Chromium (Playwright).
 

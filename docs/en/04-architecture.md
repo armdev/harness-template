@@ -92,6 +92,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
+    browser([Browser]) -->|HTTP :8081| web[web · rag-web<br/>portal]
+    web -->|signed Ed25519 · /api/*| gw
     client([Client / contract tests / eval]) -->|HTTP :8080| gw[gateway<br/>public API]
     gw -->|signed Ed25519| content[content<br/>owns posts]
     gw -->|signed Ed25519| search[search<br/>full-text index]
@@ -105,16 +107,17 @@ flowchart LR
     search -->|search_svc · schema search| pg
     notify -->|notify_svc · schema notify| pg
     kg -->|bolt · Author-WROTE-Post-TAGGED-Tag| neo[(Neo4j)]
-    prom[Prometheus] -.->|scrape /metrics| gw & content & search & notify & kg
+    prom[Prometheus] -.->|scrape /metrics| web & gw & content & search & notify & kg
 ```
 
 | Service | Responsibility | Exposed | Data | Trusts |
 |---|---|---|---|---|
+| web | rag-web portal: serves the browser client (analyze, search, graph explorer, write) and forwards its `/api/*` calls to the gateway | host `:8081` | — | (public) |
 | gateway | public HTTP API; validates and forwards; holds no data | host `:8080` | — | (public) |
 | content | creates, reads and lists posts (with tags); publishes `content.post.created` | internal `:8000` | `content.posts` (role `content_svc`) | gateway |
 | search | indexes events; full-text search with author and tag filters | internal `:8000` | `search.documents` (role `search_svc`) | gateway |
 | notify | records one notification per new post (stand-in for e-mail); lists them | internal `:8000` | `notify.outbox` (role `notify_svc`) | gateway |
-| graph | knowledge graph of authors, posts and tags; related posts, tag neighbourhoods | internal `:8000` | Neo4j (`Author`, `Post`, `Tag`; schema in `db/graph`) | gateway |
+| graph | knowledge graph of authors, posts and tags; related posts, tag neighbourhoods, tagged posts, overview | internal `:8000` | Neo4j (`Author`, `Post`, `Tag`; schema in `db/graph`) | gateway |
 
 ### Cross-cutting decisions
 
@@ -144,6 +147,7 @@ flowchart TB
     sk --> gw[gateway]
     sk & gi & ki -->|completed| kg
     content & search & notify & kg -->|healthy| gw
+    gw -->|healthy| web[web]
 ```
 
 Optional profiles: `observability` (Prometheus), `local-llm` (Ollama), `tools` (contract, unit, eval

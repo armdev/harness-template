@@ -52,6 +52,7 @@ env_value() {   # env_value NAME DEFAULT → value from the environment, else .e
 }
 HOST=$(env_value PUBLIC_HOST localhost)
 GATEWAY_PORT=$(env_value GATEWAY_PORT 8080)
+WEB_PORT=$(env_value WEB_PORT 8081)
 PROMETHEUS_PORT=$(env_value PROMETHEUS_PORT 9090)
 OLLAMA_PORT=$(env_value OLLAMA_PORT 11434)
 CONSOLE_PORT=$(env_value CONSOLE_PORT 8090)
@@ -66,6 +67,7 @@ running() { docker compose --profile observability --profile local-llm ps --stat
 print_urls() {
   printf '\n%sAccessible URLs%s\n' "$B" "$N"
   if running gateway; then
+    printf '  %-26s %s%s%s\n' "Web portal (rag-web)" "$C" "http://$HOST:$WEB_PORT" "$N  analyze · search · graph · write"
     printf '  %-26s %s%s%s\n' "Public API" "$C" "$API" "$N  (opens the docs)"
     printf '  %-26s %s%s%s\n' "API docs (Swagger UI)" "$C" "$API/docs" "$N"
     printf '  %-26s %s%s%s\n' "API docs (ReDoc)" "$C" "$API/redoc" "$N"
@@ -143,10 +145,10 @@ preflight() {
   ok "make"
   if [ -f .env ]; then ok ".env found (overrides defaults)"; else ok "no .env — using defaults (cp .env.example .env to change them)"; fi
   if ! running gateway && command -v nc >/dev/null; then
-    for p in "$GATEWAY_PORT" $( [ $OBS = 1 ] && echo "$PROMETHEUS_PORT"); do
-      nc -z "$HOST" "$p" 2>/dev/null && die "port $p is already in use" "set GATEWAY_PORT / PROMETHEUS_PORT in .env"
+    for p in "$GATEWAY_PORT" "$WEB_PORT" $( [ $OBS = 1 ] && echo "$PROMETHEUS_PORT"); do
+      nc -z "$HOST" "$p" 2>/dev/null && die "port $p is already in use" "set GATEWAY_PORT / WEB_PORT / PROMETHEUS_PORT in .env"
     done
-    ok "ports $GATEWAY_PORT$( [ $OBS = 1 ] && echo ", $PROMETHEUS_PORT") free"
+    ok "ports $GATEWAY_PORT, $WEB_PORT$( [ $OBS = 1 ] && echo ", $PROMETHEUS_PORT") free"
   fi
   mkdir -p .harness
 }
