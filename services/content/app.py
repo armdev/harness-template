@@ -39,6 +39,7 @@ auth = require_caller()
 
 
 AUTHOR_PATTERN = r"^[A-Za-z0-9._-]+$"
+MAX_ID = 2**63 - 1                  # ids are bigint; a larger cursor is a client error, not a 500
 Tag = Annotated[str, StringConstraints(pattern=r"^[a-z0-9-]{1,32}$")]
 
 
@@ -88,13 +89,16 @@ def get_post(post_id: int, _caller: str = Depends(auth)) -> Post:
 
 @app.get("/posts", response_model=AuthorPosts)
 def list_posts(author: str = Query(min_length=1, max_length=64, pattern=AUTHOR_PATTERN),
-               limit: int = Query(20, ge=1, le=50), _caller: str = Depends(auth)) -> AuthorPosts:
+               limit: int = Query(20, ge=1, le=50),
+               before: int | None = Query(None, ge=1, le=MAX_ID, description="next page: posts with an id below this"),
+               _caller: str = Depends(auth)) -> AuthorPosts:
     with pool.connection() as conn:
         rows = conn.execute(
             """
             SELECT id, title, body, author, tags, created_at FROM content.posts
-             WHERE author = %s ORDER BY created_at DESC, id DESC LIMIT %s
+             WHERE author = %(author)s AND (%(before)s::bigint IS NULL OR id < %(before)s)
+             ORDER BY id DESC LIMIT %(limit)s
             """,
-            (author, limit),
+            {"author": author, "before": before, "limit": limit},
         ).fetchall()
     return AuthorPosts(author=author, posts=[Post(**r) for r in rows])

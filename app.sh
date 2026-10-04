@@ -8,7 +8,7 @@
 #   ./app.sh status          service status and URLs
 #   ./app.sh logs [service]  follow logs (all services, or one: ./app.sh logs search)
 #   ./app.sh test            the API specification (contract suite) against the running application
-#   ./app.sh seed [dataset]  load sample posts through the API: general (24) or bank (100); safe to repeat
+#   ./app.sh seed [dataset]  load sample posts through the API: general (24), bank (100) or a .json file; repeatable
 #   ./app.sh down            stop (data in DATA_DIR is kept)
 #   ./app.sh export <dir>    copy the application, without the harness, into <dir> (a standalone project)
 #   ./app.sh help            this text
@@ -148,7 +148,13 @@ case "$cmd" in
     urls ;;
   logs)  preflight; "${DC[@]}" logs -f --tail=200 "$@" ;;
   test)  preflight; run "${DC[@]}" --profile tools run --rm --build contract ;;
-  seed)  preflight; run "${DC[@]}" --profile tools run --rm --build seed "${1:-general}" ;;
+  seed)  preflight
+         if [ -f "${1:-}" ]; then          # a dataset file on this machine: hand it to the seed container
+           file="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+           run "${DC[@]}" --profile tools run --rm --build -v "$file:/repo/custom.json:ro" seed /repo/custom.json
+         else
+           run "${DC[@]}" --profile tools run --rm --build seed "${1:-general}"
+         fi ;;
   down|stop) preflight; run "${DC[@]}" --profile observability --profile local-llm down --remove-orphans && ok "stopped; data kept" ;;
   export) export_app "$@" ;;
   help|-h|--help) awk 'NR>1 && !/^#/{exit} NR>1' "$0" | sed 's/^# \{0,1\}//' ;;

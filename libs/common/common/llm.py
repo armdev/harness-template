@@ -33,7 +33,7 @@ class ChatModel:
     def configured(self) -> bool:
         return bool(self.base_url)
 
-    def stream(self, messages: list[dict], temperature: float = 0.2, max_tokens: int = 1024) -> Iterator[str]:
+    def stream(self, messages: list[dict], temperature: float = 0.2, max_tokens: int = 2048) -> Iterator[str]:
         """Yield the answer's text as the model produces it."""
         req = {"model": self.model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens,
                "stream": True}

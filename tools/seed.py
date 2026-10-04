@@ -18,14 +18,22 @@ from pathlib import Path
 import httpx
 
 GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://localhost:8080")
-DATASETS = Path(os.environ.get("DATASETS_DIR", Path(__file__).resolve().parents[1] / "services/web/static/datasets"))
+PAGE = 50                                   # the API's largest page of an author's posts
 TAG, AUTHOR = re.compile(r"^[a-z0-9-]{1,32}$"), re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
+def datasets_dir() -> Path:
+    """DATASETS_DIR, else the datasets the portal serves, next to this script in a checkout."""
+    if env := os.environ.get("DATASETS_DIR"):
+        return Path(env)
+    return Path(__file__).resolve().parent.parent / "services/web/static/datasets"
+
+
 def load(name: str) -> list[dict]:
-    path = Path(name) if name.endswith(".json") else DATASETS / f"{name}.json"
+    datasets = datasets_dir()
+    path = Path(name) if name.endswith(".json") else datasets / f"{name}.json"
     if not path.is_file():
-        known = sorted(p.stem for p in DATASETS.glob("*.json") if p.stem != "index")
+        known = sorted(p.stem for p in datasets.glob("*.json") if p.stem != "index")
         raise SystemExit(f"no dataset '{name}' (known: {', '.join(known)}; or pass a path to a .json file)")
     return json.loads(path.read_text())
 
@@ -49,6 +57,23 @@ def problems(posts: list[dict]) -> list[str]:
     return out
 
 
+def titles_of(api: httpx.Client, author: str) -> set[str]:
+    """Every title the author already has, page by page (the newest PAGE first, then older)."""
+    titles: set[str] = set()
+    before = None
+    while True:
+        params = {"author": author, "limit": PAGE} | ({"before": before} if before else {})
+        r = api.get("/api/posts", params=params)
+        r.raise_for_status()
+        posts = r.json()["posts"]
+        titles |= {p["title"] for p in posts}
+        if len(posts) < PAGE:
+            return titles
+        if before is not None and posts[-1]["id"] >= before:
+            raise RuntimeError("the API ignored the 'before' cursor (an older gateway?); cannot page safely")
+        before = posts[-1]["id"]
+
+
 def wait_indexed(api: httpx.Client, post_id: int, timeout: float = 60) -> bool:
     """True once the last created post is in the knowledge graph (consumers are then caught up)."""
     deadline = time.monotonic() + timeout
@@ -68,9 +93,7 @@ def main(argv: list[str]) -> int:
     with httpx.Client(base_url=GATEWAY_URL, timeout=15) as api:
         existing: dict[str, set[str]] = {}
         for author in sorted({p["author"] for p in posts}):
-            r = api.get("/api/posts", params={"author": author, "limit": 50})
-            r.raise_for_status()
-            existing[author] = {p["title"] for p in r.json()["posts"]}
+            existing[author] = titles_of(api, author)
         created, last = 0, None
         for p in posts:
             if p["title"] in existing[p["author"]]:

@@ -37,3 +37,8 @@ def test_portal_forwards_only_the_api(web):
     assert web.get("/api/../docs").status_code == 404
     assert web.get("/docs").status_code == 404
     assert web.delete("/api/posts/1").status_code == 405
+
+
+def test_portal_refuses_an_oversized_body_with_413(web):
+    assert web.post("/api/posts", content=b"x" * (64 * 1024 + 1),
+                    headers={"content-type": "application/json"}).status_code == 413

@@ -29,6 +29,7 @@ async def lifespan(_app):
     gateway["client"] = SignedClient(os.environ["GATEWAY_URL"], timeout=15)
     yield
     gateway["client"].close()
+    await gateway["client"].aclose()
 
 
 app = create_app("web", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -40,13 +41,24 @@ def index() -> FileResponse:
     return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
 
+async def read_limited(request: Request) -> bytes:
+    """The request body, refused (413) as soon as it is known to exceed MAX_BODY: never buffered whole first."""
+    too_large = HTTPException(status_code=413, detail="request body too large")
+    if int(request.headers.get("content-length") or 0) > MAX_BODY:
+        raise too_large
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_BODY:
+            raise too_large
+    return bytes(body)
+
+
 @app.api_route("/api/{path:path}", methods=["GET", "POST"], include_in_schema=False)
 async def api(path: str, request: Request) -> Response:
     if ".." in path.split("/"):
         raise HTTPException(status_code=404, detail="not found")
-    body = await request.body()
-    if len(body) > MAX_BODY:
-        raise HTTPException(status_code=413, detail="request body too large")
+    body = await read_limited(request)
     headers = {h: request.headers[h] for h in FORWARDED_HEADERS if h in request.headers}
     return await relay(gateway["client"], request.method, f"/api/{path}", service="gateway",
                        params=request.query_params, content=body or None, headers=headers)
