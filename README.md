@@ -27,7 +27,7 @@ it back, finds it through search, and prints where everything is:
 
 ```
 Accessible URLs
-  Web portal (rag-web)       http://localhost:8081  analyze · search · graph · chat · write
+  Web portal (rag-web)       http://localhost:8081  analyze · search · graph · chat · plan · write
   Public API                 http://localhost:8080  (opens the docs)
   API docs (Swagger UI)      http://localhost:8080/docs
   API docs (ReDoc)           http://localhost:8080/redoc
@@ -82,12 +82,20 @@ posts it found.
 
 ![rag-web: chat](docs/assets/web-chat.png)
 
+**Plan** is a work planner for a bank's IT staff (`planner` service). It holds employees, their Jira-style tasks
+(severity, estimate, due date, dependencies) and their Outlook-style meetings. Every task gets a priority score with
+readable reasons, and each person's week is filled around their meetings. **Re-plan with AI** lets the model re-order
+a person's tasks following an instruction ("I am off on Friday; security first"), and the rules check its answer. Load
+the sample team with `./app.sh seed planner`. Details: [Planner](docs/en/08-planner.md) ([по-русски](docs/ru/08-planner.md)).
+
+![rag-web: plan](docs/assets/plan-person.png)
+
 ### Only the application, without the harness
 
 The RAG system runs on its own: no harness, console, make or python on the host, just Docker and curl.
 
 ```bash
-./app.sh                    # build + start web, gateway, content, search, notify, graph, chat (+ postgres, kafka, neo4j), smoke test, URLs
+./app.sh                    # build + start web, gateway, content, search, notify, graph, chat, planner (+ postgres, kafka, neo4j), smoke test, URLs
 ./app.sh test               # the API specification (contract suite) against it
 ./app.sh status · logs search · down
 ./app.sh export ../rag-app  # a standalone copy of the application, with no harness files: cd ../rag-app && ./app.sh
@@ -181,7 +189,7 @@ harness/
   tests/                      tests of the harness itself (make harness-test)
   CHANGELOG.md  HARNESS.md    releases with first-run impact · design, versioning, steering loop
 docker-compose.yml            the reference system's architecture (checked by the topology sensor)
-services/  libs/common/       web (rag-web portal) · gateway · content · search · notify · graph (Neo4j) · chat (RAG); signed calls, logging, metrics, model client
+services/  libs/common/       web (rag-web portal) · gateway · content · search · notify · graph (Neo4j) · chat (RAG) · planner; signed calls, logging, metrics, model client
 db/migrations/  db/graph/     Flyway (PostgreSQL) · Cypher constraints (Neo4j, applied by graph-init)
 contract/  eval/  tools/      API specification · search-quality eval · test tooling image
 infra/prometheus/             scrape config and alert rules

@@ -86,6 +86,7 @@ skills (`harness-report`, `harness-steer`), which `harness-coverage` reports hon
 | content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`, `GET /posts?author=`; writes `content.posts`; produces `content.post.created` |
 | search | `services/search/app.py`, `indexer.py` | `GET /search` (author and tag filters); `EventConsumer` with a handler upserting `search.documents`; Postgres full-text ranking |
 | notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; `EventConsumer` with a handler recording one `notify.outbox` row per post (idempotent) |
+| planner | `services/planner/app.py`, `planning.py` | employees, tasks, meetings (Postgres, schema `planner`); task priority with reasons, week schedule around meetings, model re-plan checked by the rules, work graph — see [Planner](08-planner.md) |
 | chat | `services/chat/app.py`, `rag.py` | `POST /chat`: fixed RAG pipeline (search → graph → content → model) answering with `[#id]` citations, streamed as server-sent events; lists the sources when no model is reachable |
 | web (rag-web) | `services/web/app.py`, `static/` | the portal: browser client (analyze, search, graph explorer, chat, write, post/tag/author pages) and a signed, streaming `/api/*` proxy to the gateway |
 | graph | `services/graph/app.py`, `graph.py` | `GET /related/{post_id}`, `GET /tags/{tag}`, `GET /tags/{tag}/posts`, `GET /overview`; `EventConsumer` with a handler MERGEing `(:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag)` in Neo4j (idempotent) |

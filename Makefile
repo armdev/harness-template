@@ -37,7 +37,7 @@ test:                    ## unit tests (no network)
 contract:                ## contract suite against the running stack (the specification)
 	$(COMPOSE) --profile tools run --rm --build contract
 
-seed:                    ## load sample posts through the API (stack up): make seed d=bank  (general | bank)
+seed:                    ## load sample data through the API (stack up): make seed d=bank  (general|bank|ibank|planner)
 	$(COMPOSE) --profile tools run --rm --build seed $(or $(d),general)
 
 eval:                    ## search quality against eval/baseline.json; report in .harness/eval-report.md

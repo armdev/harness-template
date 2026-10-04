@@ -81,6 +81,10 @@ jobs:
           grep -q "Interest rate versus APR" "$RUNNER_TEMP/chat.txt"             # retrieval finds the banking post
           ./app.sh seed ibank > "$RUNNER_TEMP/seed3.txt"
           grep -q "46 posts created" "$RUNNER_TEMP/seed3.txt"
+          ./app.sh seed planner > "$RUNNER_TEMP/seed4.txt"
+          grep -q "11 employees, 61 tasks, 57 meetings" "$RUNNER_TEMP/seed4.txt"
+          curl -fsS http://localhost:8081/api/planner/plan/anna.petrosyan > "$RUNNER_TEMP/plan.txt"
+          grep -q '"key":"PAY-101"' "$RUNNER_TEMP/plan.txt"                     # the blocker is planned
 
       - name: Report
         if: always()

@@ -3,9 +3,10 @@
 #
 # Portal:                         browser -> web -> gateway (signed as web; the gateway API is public)
 # Call graph (signed, Ed25519):   gateway -> content, gateway -> search, gateway -> notify, gateway -> graph,
-#                                 gateway -> chat -> search, graph, content (retrieval), chat -> LLM (OpenAI-compatible)
+#                                 gateway -> chat -> search, graph, content (retrieval), chat -> LLM (OpenAI-compatible),
+#                                 gateway -> planner -> LLM (re-plans a person's tasks)
 # Events (Kafka):                 content --content.post.created--> search, notify, graph
-# Data:                           postgres (content_svc, search_svc, notify_svc), neo4j (graph), kafka — under DATA_DIR
+# Data:                           postgres (content_svc, search_svc, notify_svc, planner_svc), neo4j (graph), kafka — under DATA_DIR
 
 name: air-harness
 
@@ -43,7 +44,7 @@ services:
     build: { context: ., dockerfile: libs/common/Dockerfile }
     image: air-harness/service-keys:${APP_TAG:-dev}   # tag of locally built application images
     user: "0:0"                             # chowns each private key to the service uid (10001)
-    entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search", "notify", "graph", "web", "chat"]
+    entrypoint: ["python", "-m", "common.keygen", "/keys", "gateway", "content", "search", "notify", "graph", "web", "chat", "planner"]
     volumes:
       - service-keys:/keys
 
@@ -59,6 +60,7 @@ services:
       FLYWAY_PLACEHOLDERS_CONTENT_DB_PASSWORD: ${CONTENT_DB_PASSWORD:-content-dev}
       FLYWAY_PLACEHOLDERS_SEARCH_DB_PASSWORD: ${SEARCH_DB_PASSWORD:-search-dev}
       FLYWAY_PLACEHOLDERS_NOTIFY_DB_PASSWORD: ${NOTIFY_DB_PASSWORD:-notify-dev}
+      FLYWAY_PLACEHOLDERS_PLANNER_DB_PASSWORD: ${PLANNER_DB_PASSWORD:-planner-dev}
     volumes:
       - ./db/migrations:/flyway/sql:ro
     depends_on:
@@ -174,6 +176,7 @@ services:
       NOTIFY_URL: http://notify:8000
       GRAPH_URL: http://graph:8000
       CHAT_URL: http://chat:8000
+      PLANNER_URL: http://planner:8000
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: gateway } }
       - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
@@ -184,6 +187,7 @@ services:
       notify: { condition: service_healthy }
       graph: { condition: service_healthy }
       chat: { condition: service_healthy }
+      planner: { condition: service_healthy }
 
   content:                                  # owns posts; publishes content.post.created
     <<: [*py, *internal]
@@ -282,6 +286,26 @@ services:
       search: { condition: service_healthy }
       graph: { condition: service_healthy }
 
+  planner:                                  # employees, Jira-style tasks, meetings; plans each person's week (rules + LLM)
+    <<: [*py, *internal]
+    build: { context: ., dockerfile: services/planner/Dockerfile }
+    image: air-harness/planner:${APP_TAG:-dev}
+    environment:
+      <<: *py-env
+      SERVICE_NAME: planner
+      TRUSTED_CALLERS: gateway
+      DB_DSN: postgresql://planner_svc:${PLANNER_DB_PASSWORD:-planner-dev}@postgres:5432/${POSTGRES_DB:-air_harness}
+      PLANNER_LLM_URL: ${CHAT_LLM_URL-http://ollama:11434/v1}   # the chat's model endpoint re-plans too; empty = rules only
+      PLANNER_MODEL: ${CHAT_MODEL:-qwen3:8b}
+      PLANNER_LLM_API_KEY: ${CHAT_LLM_API_KEY:-not-needed}
+    extra_hosts: ["host.docker.internal:host-gateway"]     # a model served on this machine (e.g. a native Ollama)
+    volumes:
+      - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: planner } }
+      - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }
+    depends_on:
+      service-keys: { condition: service_completed_successfully }
+      migrate: { condition: service_completed_successfully }
+
   web:                                      # rag-web: the portal (browser client); forwards /api/* to the gateway, signed
     <<: [*py, *internal]
     build: { context: ., dockerfile: services/web/Dockerfile }
@@ -332,11 +356,12 @@ services:
     image: air-harness/tools:${APP_TAG:-dev}
     profiles: [tools]
     working_dir: /repo
-    command: ["pytest", "-q", "-p", "no:cacheprovider", "libs/common/tests"]
+    command: ["pytest", "-q", "-p", "no:cacheprovider", "libs/common/tests", "services/planner/tests"]
     environment:
-      PYTHONPATH: /repo/libs/common         # test the mounted source, not the copy baked into the image
+      PYTHONPATH: /repo/libs/common:/repo/services/planner   # the mounted source, not the copy baked into the image
     volumes:
       - ./libs:/repo/libs:ro
+      - ./services/planner:/repo/services/planner:ro
     network_mode: none
 
   seed:                                     # load a dataset of posts through the API: ./app.sh seed bank (stack up)

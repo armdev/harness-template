@@ -19,3 +19,5 @@ scrape_configs:
     static_configs: [{ targets: ["web:8000"] }]
   - job_name: chat
     static_configs: [{ targets: ["chat:8000"] }]
+  - job_name: planner
+    static_configs: [{ targets: ["planner:8000"] }]

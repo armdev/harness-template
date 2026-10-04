@@ -140,3 +140,23 @@ groups:
         for: 10m
         labels: { severity: ticket }
         annotations: { summary: "chat: p95 time to first event above 2 s (search, graph and content calls)" }
+  - name: planner
+    rules:
+      - alert: PlannerDown
+        expr: up{job="planner"} == 0
+        for: 1m
+        labels: { severity: page }
+        annotations: { summary: "planner is not being scraped" }
+      - alert: PlannerHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="planner",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total{job="planner"}[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: { severity: page }
+        annotations: { summary: "planner: more than 5% of requests fail" }
+      - alert: PlannerHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="planner",route!="/plan/{handle}/ai"}[5m]))) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations: { summary: "planner: p95 latency above 500 ms (the model-backed re-plan is excluded: it waits for the model)" }

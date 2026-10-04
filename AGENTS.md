@@ -9,9 +9,10 @@ client ──HTTP──> gateway <───────────────�
                     ├─────signed──────────────────────────────────────────────┼──> search
                     ├─────signed──────────────────────────────────────────────┼──> notify
                     ├─────signed──────────────────────────────────────────────└──> graph
-                    └─signed─> chat ──signed──> search, graph, content (retrieval) ──> LLM (OpenAI-compatible)
-        content, search, notify ─ postgres: one role and schema each (content_svc/content, search_svc/search,
-                                  notify_svc/notify)
+                    ├─signed─> chat ──signed──> search, graph, content (retrieval) ──> LLM (OpenAI-compatible)
+                    └─signed─> planner (employees, tasks, meetings; week plans) ──> LLM (re-plan)
+        content, search, notify, planner ─ postgres: one role and schema each (content_svc/content, search_svc/search,
+                                  notify_svc/notify, planner_svc/planner)
         graph ─ neo4j: (:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag); its schema in db/graph (graph-init)
 ```
 

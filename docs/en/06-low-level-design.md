@@ -391,6 +391,14 @@ says so. The model client (`libs/common/common/llm.py`) is the only place that c
 `common.relay` (chunks forwarded as they arrive, read timeout 180 s). Contract: `contract/test_chat.py` holds with
 and without a model.
 
+### planner
+
+Employees, Jira-style tasks and meetings in schema `planner` (role `planner_svc`, `V9__planner.sql`). The rules are
+pure functions in `planning.py`: `rank` (score, bucket, reasons, `blocked_by`, `blocks`), `schedule` (working days
+09:00–18:00 minus lunch and meetings, at most `capacity_hours` a day, own dependencies first, chunks of 30 min or
+more), `prompt` and `read_answer` (the model re-plan, validated strictly; anything unusable falls back to the rules).
+The full description, the scoring table and the API: [Planner](08-planner.md).
+
 ### web (rag-web)
 
 The portal: a FastAPI app (`services/web/app.py`) that serves a dependency-free browser client
@@ -471,7 +479,7 @@ Grants: `content_svc` → `USAGE` on `content`, `SELECT, INSERT` on `content.pos
 `search`, `SELECT, INSERT, UPDATE` on `search.documents`. `notify_svc` → `USAGE` on `notify`, `SELECT, INSERT` on
 `notify.outbox`. Objects are owned by the migration user (`postgres`).
 The `migrate` one-shot runs Flyway with `FLYWAY_CONNECT_RETRIES=30`; the placeholders come from
-`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD` / `NOTIFY_DB_PASSWORD`, the same variables used in each service's
+`CONTENT_DB_PASSWORD` / `SEARCH_DB_PASSWORD` / `NOTIFY_DB_PASSWORD` / `PLANNER_DB_PASSWORD`, the same variables used in each service's
 `DB_DSN`.
 
 ## 6.12 Eval (`eval/run_eval.py`)
@@ -530,9 +538,9 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `DATA_DIR` | `/var/tmp/air-harness` | persistent data (postgres, kafka, neo4j, ollama) |
 | `GATEWAY_PORT` / `WEB_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 8081 / 9090 / 11434 | host ports |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | database |
-| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | service roles |
+| `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD`, `PLANNER_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev`, `planner-dev` | service roles |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | Neo4j graph store |
-| `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | Chat model (any OpenAI-compatible endpoint; set the URL empty for sources-only answers) |
+| `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | Chat model, also used by the planner's AI re-plan (any OpenAI-compatible endpoint; set the URL empty for sources-only answers and rules-only plans) |
 | `LOG_LEVEL` | `INFO` | services |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | broker heap |
 | `*_TAG` | pinned | image versions |

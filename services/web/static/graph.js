@@ -1,6 +1,7 @@
 // ForceGraph: a small force-directed graph in SVG, no dependencies.
 //   const g = ForceGraph(box, { onClick: node => ..., onOpen: node => ... });
-//   g.add([{id, type: "post"|"tag"|"author", label, size}], [{source, target, weight}]);
+//   g.add([{id, type: "post"|"tag"|"author", label, size, cls}], [{source, target, weight, cls}]);
+// opts.legend: [[label, css class of its dot], ...] (default: post, tag, author); `cls` adds CSS classes to a node or edge.
 // Drag a node to move it, drag the background to pan, wheel to zoom. Click calls onClick, double-click onOpen.
 "use strict";
 
@@ -9,7 +10,8 @@ function ForceGraph(box, opts = {}) {
   const nodes = new Map(), edges = new Map();
   let alpha = 1, frame = null, view = { x: 0, y: 0, k: 1 }, focusId = null;
 
-  box.innerHTML = `<div class="legend"><span class="lp">post</span><span class="lt">tag</span><span class="la">author</span></div>
+  const legend = opts.legend || [["post", "lp"], ["tag", "lt"], ["author", "la"]];
+  box.innerHTML = `<div class="legend">${legend.map(([l, c]) => `<span class="${c}">${l}</span>`).join("")}</div>
     <div class="tools"><button data-t="fit" title="Fit to view">Fit</button><button data-t="shake" title="Re-layout">Shake</button></div>`;
   const svg = document.createElementNS(NS, "svg");
   const world = document.createElementNS(NS, "g");
@@ -38,7 +40,7 @@ function ForceGraph(box, opts = {}) {
       const k = ekey(e.source, e.target);
       if (edges.has(k)) { edges.get(k).weight = Math.max(edges.get(k).weight, e.weight || 1); continue; }
       const line = document.createElementNS(NS, "line");
-      line.setAttribute("class", "edge" + ((e.weight || 1) > 1 ? " strong" : ""));
+      line.setAttribute("class", "edge" + ((e.weight || 1) > 1 ? " strong" : "") + (e.cls ? " " + e.cls : ""));
       line.setAttribute("stroke-width", String(1 + Math.min(5, (e.weight || 1) - 1)));
       if (e.title) { const t = document.createElementNS(NS, "title"); t.textContent = e.title; line.append(t); }
       edgeLayer.append(line);
@@ -54,7 +56,7 @@ function ForceGraph(box, opts = {}) {
 
   function drawNode(n) {
     const g = document.createElementNS(NS, "g");
-    g.setAttribute("class", `node ${n.type}`);
+    g.setAttribute("class", `node ${n.type}` + (n.cls ? " " + n.cls : ""));
     const c = document.createElementNS(NS, "circle"); c.setAttribute("r", radius(n));
     const t = document.createElementNS(NS, "text"); t.setAttribute("dy", radius(n) + 13); t.setAttribute("text-anchor", "middle");
     t.textContent = short(n.label);
