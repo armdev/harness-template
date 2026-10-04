@@ -272,6 +272,7 @@ services:
       CHAT_LLM_URL: ${CHAT_LLM_URL-http://ollama:11434/v1}    # OpenAI-compatible model endpoint; set empty = answer with the sources only
       CHAT_MODEL: ${CHAT_MODEL:-qwen3:8b}                     # model name at that endpoint
       CHAT_LLM_API_KEY: ${CHAT_LLM_API_KEY:-not-needed}       # API key for a hosted endpoint
+    extra_hosts: ["host.docker.internal:host-gateway"]     # a model served on this machine (e.g. a native Ollama)
     volumes:
       - { type: volume, source: service-keys, target: /run/keys/self, read_only: true, volume: { subpath: chat } }
       - { type: volume, source: service-keys, target: /run/keys/public, read_only: true, volume: { subpath: public } }

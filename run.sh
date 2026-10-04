@@ -27,7 +27,7 @@ die()   { fail "$1"; [ -n "${2:-}" ] && printf '    %s\n' "$2"; exit 1; }
 run()   { printf '  %s$ %s%s\n' "$DIM" "$*" "$N"; "$@"; }
 
 # ------------------------------------------------------------------ options
-CHECK=0 FULL=0 LLM=0 OBS=1 CONSOLE=0 MODE=up
+CHECK=0 FULL=0 LLM=0 OBS=1 CONSOLE=0 MODE=up HOST_OLLAMA=0
 for arg in "$@"; do
   case "$arg" in
     --check) CHECK=1 ;;
@@ -150,6 +150,14 @@ preflight() {
     done
     ok "ports $GATEWAY_PORT, $WEB_PORT$( [ $OBS = 1 ] && echo ", $PROMETHEUS_PORT") free"
   fi
+  if [ $LLM = 1 ] && ! running ollama && (exec 3<>"/dev/tcp/127.0.0.1/$OLLAMA_PORT") 2>/dev/null; then
+    curl -fsS -m 3 -o /dev/null "http://127.0.0.1:$OLLAMA_PORT/api/tags" 2>/dev/null \
+      || die "port $OLLAMA_PORT is used by another program, not Ollama" "free it, or set OLLAMA_PORT in .env"
+    HOST_OLLAMA=1                    # an Ollama installed on this machine: use it instead of starting a second one
+    [ "$(env_value CHAT_LLM_URL http://ollama:11434/v1)" = http://ollama:11434/v1 ] \
+      && export CHAT_LLM_URL="http://host.docker.internal:$OLLAMA_PORT/v1"
+    ok "Ollama is already running on port $OLLAMA_PORT: the review agent and Chat use it (no second one is started)"
+  fi
   mkdir -p .harness
 }
 
@@ -227,8 +235,16 @@ smoke_test || status=1
 if [ $LLM = 1 ]; then
   title "Local LLM for the review agent and Chat ($LLM_MODEL)"
   export LLM_BASE_URL="${LLM_BASE_URL:-$(env_value LLM_BASE_URL http://host.docker.internal:$OLLAMA_PORT/v1)}"
-  run make -s llm LLM_MODEL="$LLM_MODEL" && ok "model ready on http://$HOST:$OLLAMA_PORT/v1; this run reviews with it (LLM_BASE_URL=$LLM_BASE_URL)" \
-    || warn "could not start or pull the model — the review agent will report BLIND (advisory, not blocking)"
+  if [ $HOST_OLLAMA = 1 ]; then
+    curl -fsS -m 3600 "http://127.0.0.1:$OLLAMA_PORT/api/pull" -d "{\"model\":\"$LLM_MODEL\",\"stream\":false}" >/dev/null \
+      && ok "model $LLM_MODEL ready in your Ollama (LLM_BASE_URL=$LLM_BASE_URL)" \
+      || warn "could not pull $LLM_MODEL into your Ollama: run 'ollama pull $LLM_MODEL'"
+    docker compose exec -T chat python -c "import urllib.request; urllib.request.urlopen('http://host.docker.internal:$OLLAMA_PORT/api/tags', timeout=3)" >/dev/null 2>&1 \
+      || warn "the containers cannot reach your Ollama (it listens on 127.0.0.1 only, the Linux default): sudo systemctl edit ollama → Environment=OLLAMA_HOST=0.0.0.0, then restart it"
+  else
+    run make -s llm LLM_MODEL="$LLM_MODEL" && ok "model ready on http://$HOST:$OLLAMA_PORT/v1; this run reviews with it (LLM_BASE_URL=$LLM_BASE_URL)" \
+      || warn "could not start or pull the model — the review agent will report BLIND (advisory, not blocking)"
+  fi
   grep -qE '^LLM_BASE_URL=[^ #]' .env 2>/dev/null || warn "to keep the review agent on in later runs: echo 'LLM_BASE_URL=$LLM_BASE_URL' >> .env"
 fi
 

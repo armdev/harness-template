@@ -186,7 +186,8 @@ the line to put in `.env` to keep it on.
 | Symptom | Fix |
 |---|---|
 | Cannot connect to the Docker daemon | start Docker Desktop / `sudo systemctl start docker` |
-| port is already allocated | set `GATEWAY_PORT` / `PROMETHEUS_PORT` in `.env` |
+| port is already allocated | `./run.sh` and `./app.sh` check ports first and name the variable: set `GATEWAY_PORT` / `WEB_PORT` / `PROMETHEUS_PORT` in `.env` |
+| `--llm`: port 11434 already in use | an Ollama installed on your machine already runs there: `--llm` now uses it instead of starting a second one (Chat and the review agent go through `host.docker.internal`). Containers reach it only if it listens on all interfaces; on Linux: `sudo systemctl edit ollama` → `[Service] Environment=OLLAMA_HOST=0.0.0.0`, then `sudo systemctl restart ollama`. Or stop it and let `--llm` start its own, or set `OLLAMA_PORT` |
 | a service is unhealthy or exited | `docker compose ps -a`, then `make logs s=<service>` |
 | `migrate` exited with an error | a migration failed: never edit an applied one, add `V<next>__…sql` |
 | volume `subpath` errors | Docker Engine 26+ / Compose 2.24+ required |
