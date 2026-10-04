@@ -54,11 +54,14 @@ purge: clean             ## clean + delete DATA_DIR contents (database, topics, 
 
 include harness.mk
 
-adoption-test:           ## install the harness into a fresh sample project; it must be GREEN on its first run
+adoption-test:           ## install the harness into a fresh sample project: GREEN on first run and after --upgrade
 	@set -e; d=$$(mktemp -d); trap 'rm -rf "$$d"' EXIT; p="$$d/sample"; mkdir -p "$$p/app"; \
 	printf 'def add(a, b):\n    return a + b\n' > "$$p/app/calc.py"; \
 	printf 'services:\n  app:\n    image: python:3.12-slim\n' > "$$p/docker-compose.yml"; \
 	git -C "$$p" init -q; git -C "$$p" add -A; git -C "$$p" -c user.email=ci@local -c user.name=ci commit -qm init; \
 	python3 harness/install.py "$$p"; \
-	$(MAKE) -s -C "$$p" harness-coverage harness-selftest harness-static; \
-	head -1 "$$p/.harness/report.md" | grep -q GREEN && echo "adoption-test: GREEN on first run"
+	$(MAKE) -s -C "$$p" harness-test harness-coverage harness-selftest harness-static; \
+	head -1 "$$p/.harness/report.md" | grep -q GREEN; echo "adoption-test: GREEN on first run"; \
+	python3 harness/install.py "$$p" --upgrade; \
+	$(MAKE) -s -C "$$p" harness-coverage harness-static; \
+	head -1 "$$p/.harness/report.md" | grep -q GREEN && echo "adoption-test: GREEN after --upgrade"

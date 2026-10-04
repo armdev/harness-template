@@ -143,5 +143,7 @@ make harness-coverage && make harness-selftest && make harness-fast   # GREEN on
 The installer keeps what applies to the project as it is: lint, organisation rules, dead code, vulnerable
 dependencies and the review agent on its own source directories; topology with a compose file; migrations with a
 `db/migrations`; a `unit` sensor when the Makefile has a `test:` target. It never overwrites the project's
-`AGENTS.md`, `CLAUDE.md` or ruff configuration. `make adoption-test` (run in CI) proves a fresh project is GREEN on
-its first run.
+`AGENTS.md`, `CLAUDE.md` or ruff configuration. Later, `python3 harness/install.py <project> --upgrade` from a newer
+air-harness replaces only the upstream-owned machinery and prints what changed; the project's manifest, rubric,
+skills and own rules stay. `make adoption-test` (run in CI) proves a fresh project is GREEN on its first run and
+after an upgrade.
