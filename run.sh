@@ -236,9 +236,9 @@ if [ $LLM = 1 ]; then
   title "Local LLM for the review agent and Chat ($LLM_MODEL)"
   export LLM_BASE_URL="${LLM_BASE_URL:-$(env_value LLM_BASE_URL http://host.docker.internal:$OLLAMA_PORT/v1)}"
   if [ $HOST_OLLAMA = 1 ]; then
-    curl -fsS -m 3600 "http://127.0.0.1:$OLLAMA_PORT/api/pull" -d "{\"model\":\"$LLM_MODEL\",\"stream\":false}" >/dev/null \
-      && ok "model $LLM_MODEL ready in your Ollama (LLM_BASE_URL=$LLM_BASE_URL)" \
-      || warn "could not pull $LLM_MODEL into your Ollama: run 'ollama pull $LLM_MODEL'"
+    tools/ollama-pull.sh "http://127.0.0.1:$OLLAMA_PORT" "$LLM_MODEL" host \
+      && ok "your Ollama serves $LLM_MODEL (LLM_BASE_URL=$LLM_BASE_URL)" \
+      || warn "no model yet: the review agent reports BLIND and Chat lists the sources until it is pulled"
     docker compose exec -T chat python -c "import urllib.request; urllib.request.urlopen('http://host.docker.internal:$OLLAMA_PORT/api/tags', timeout=3)" >/dev/null 2>&1 \
       || warn "the containers cannot reach your Ollama (it listens on 127.0.0.1 only, the Linux default): sudo systemctl edit ollama → Environment=OLLAMA_HOST=0.0.0.0, then restart it"
   else

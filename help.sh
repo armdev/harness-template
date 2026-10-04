@@ -142,6 +142,7 @@ topic_troubleshoot() {
   h "Troubleshooting"
   kv "Cannot connect to the Docker daemon" "start Docker Desktop / sudo systemctl start docker"
   kv "port is already allocated" "set GATEWAY_PORT / WEB_PORT / PROMETHEUS_PORT in .env, then ./run.sh"
+  kv "--llm: model pull fails (lookup)" "Ollama has no DNS/internet: follow the printed checks, then ./app.sh pull (retries)"
   kv "--llm: 11434 already in use" "your own Ollama runs there: --llm uses it; on Linux let it listen on all interfaces:"
   kv "" "sudo systemctl edit ollama → Environment=OLLAMA_HOST=0.0.0.0, restart it (or stop it, or set OLLAMA_PORT)"
   kv "service unhealthy / exited" "docker compose ps -a, then make logs s=<service>"

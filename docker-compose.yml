@@ -309,6 +309,8 @@ services:
     image: ollama/ollama:${OLLAMA_TAG:-0.12.3}   # Ollama image tag
     profiles: [local-llm]
     ports: ["${OLLAMA_PORT:-11434}:11434"]   # host port of the local LLM API
+    environment:
+      HTTPS_PROXY: ${OLLAMA_HTTPS_PROXY:-}   # proxy for model downloads, if this network needs one
     volumes:
       - ${DATA_DIR:-/var/tmp/air-harness}/ollama:/root/.ollama
 

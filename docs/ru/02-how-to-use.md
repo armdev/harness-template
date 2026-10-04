@@ -194,6 +194,7 @@ REVIEW_MODEL=a-stronger-model           # опционально: ревью б�
 |---|---|
 | Cannot connect to the Docker daemon | запустите Docker Desktop / `sudo systemctl start docker` |
 | port is already allocated | `./run.sh` и `./app.sh` сначала проверяют порты и называют переменную: задайте `GATEWAY_PORT` / `WEB_PORT` / `PROMETHEUS_PORT` в `.env` |
+| `--llm`: не скачивается модель (`lookup registry.ollama.ai … connection refused`) | у Ollama нет DNS или доступа в интернет. Загрузка повторяется с паузами и заканчивается проверками для вашего случая (контейнер или ваш Ollama, systemd-resolved на 127.0.0.53, DNS Docker в `/etc/docker/daemon.json`, `OLLAMA_HTTPS_PROXY`). После исправления `./app.sh pull` повторит загрузку без перезапуска |
 | `--llm`: порт 11434 уже занят | на вашей машине уже работает установленный Ollama: `--llm` теперь использует его вместо запуска второго (чат и агент-ревьюер ходят через `host.docker.internal`). Контейнеры достучатся до него, только если он слушает все интерфейсы; в Linux: `sudo systemctl edit ollama` → `[Service] Environment=OLLAMA_HOST=0.0.0.0`, затем `sudo systemctl restart ollama`. Или остановите его — тогда `--llm` запустит свой, — или задайте `OLLAMA_PORT` |
 | сервис unhealthy или завершился | `docker compose ps -a`, затем `make logs s=<service>` |
 | `migrate` завершился с ошибкой | миграция упала: никогда не правьте применённую, добавьте `V<next>__…sql` |
