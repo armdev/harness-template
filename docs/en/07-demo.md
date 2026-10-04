@@ -60,11 +60,11 @@ post expanded, links scores to cards, loans, mortgage underwriting and budgeting
 
 ![banking dataset: graph explorer](../assets/bank-graph.png)
 
-**Ardshinbank dataset** (`./app.sh seed ardshinbank`): 46 posts summarising a real bank's public website, every
-post with its source URL. The `#ardshinbank` tag page shows how its cards, loans, deposits, business and digital
-banking topics connect.
+**iBank dataset** (`./app.sh seed ibank`): 46 posts about iBank, a stand-in name for a bank modelled on a real
+bank's public website (ardshinbank.am), every post with its source URL. The `#ibank` tag page shows how its cards,
+loans, deposits, business and digital banking topics connect.
 
-![Ardshinbank dataset: tag page](../assets/ardshinbank-tag.png)
+![iBank dataset: tag page](../assets/ibank-tag.png)
 
 **Write**: publish, then watch every consumer of `content.post.created` catch up.
 

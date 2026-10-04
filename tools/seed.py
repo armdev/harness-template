@@ -1,6 +1,6 @@
 """Seed the application with a dataset of posts through the public API, so search, graph, notify and chat all get them.
 
-  python tools/seed.py bank        # a dataset from services/web/static/datasets (general, bank, ardshinbank), or a .json path
+  python tools/seed.py bank        # a dataset from services/web/static/datasets (general, bank, ibank), or a .json path
   ./app.sh seed bank  ·  make seed d=bank
 
 The dataset is validated first (the same rules as POST /api/posts). Seeding is idempotent: a post is skipped when its
