@@ -25,9 +25,12 @@ rules:
     severity: ERROR
     message: >-
       Schema change in application code. Every DDL statement goes into db/migrations as a Flyway migration
-      (V<n>__name.sql, or R__ for repeatable); services run with roles that should not own DDL.
+      (V<n>__name.sql, or R__ for repeatable); Neo4j constraints and indexes go into db/graph/*.cypher, applied
+      by graph-init. Services run with roles that should not own schema.
     pattern-either:
       - pattern: $C.execute("=~/(?i)^\s*(create|alter|drop)\s+(table|index|schema|type|extension)/", ...)
+      - pattern: $C.run("=~/(?i)^\s*(create|drop)\s+(constraint|index|fulltext|range|text|point|vector)/", ...)
+      - pattern: $C.execute_query("=~/(?i)^\s*(create|drop)\s+(constraint|index|fulltext|range|text|point|vector)/", ...)
     paths:
       include: [services/, libs/]
       exclude: [eval/, "**/tests/**"]

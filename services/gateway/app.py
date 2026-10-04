@@ -6,7 +6,7 @@ import os
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import Body, HTTPException, Query, Response
+from fastapi import Body, HTTPException, Path, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import RedirectResponse
 
@@ -22,6 +22,7 @@ async def lifespan(_app):
     clients["content"] = SignedClient(os.environ["CONTENT_URL"])
     clients["search"] = SignedClient(os.environ["SEARCH_URL"])
     clients["notify"] = SignedClient(os.environ["NOTIFY_URL"])
+    clients["graph"] = SignedClient(os.environ["GRAPH_URL"])
     yield
     for c in clients.values():
         c.close()
@@ -78,3 +79,15 @@ async def search(q: str = Query(min_length=1, max_length=200), author: str | Non
 async def notifications(author: str = Query(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
                         limit: int = Query(20, ge=1, le=50)) -> Response:
     return await forward("notify", "GET", "/outbox", params={"author": author, "limit": limit})
+
+
+@app.get("/api/posts/{post_id}/related",
+         summary="Posts related through shared tags or the same author (knowledge graph)")
+async def related_posts(post_id: int, limit: int = Query(10, ge=1, le=50)) -> Response:
+    return await forward("graph", "GET", f"/related/{post_id}", params={"limit": limit})
+
+
+@app.get("/api/tags/{tag}", summary="A tag in the knowledge graph: how many posts carry it, which tags appear with it")
+async def tag_neighbourhood(tag: str = Path(pattern=r"^[a-z0-9-]{1,32}$"),
+                            limit: int = Query(10, ge=1, le=50)) -> Response:
+    return await forward("graph", "GET", f"/tags/{tag}", params={"limit": limit})

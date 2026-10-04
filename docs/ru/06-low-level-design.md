@@ -113,7 +113,7 @@ flowchart TD
 
 ```yaml
 harness: 1
-template: { name: py-services-pg-kafka, version: 0.5.0 }
+template: { name: py-services-pg-kafka, version: 0.5.1 }
 categories: [maintainability, architecture, behaviour]
 guides:
   - id: <уникальный>             # на него ссылается sensors.pairs_with
@@ -137,7 +137,7 @@ sensors:
 
 ## 6.3 Контейнеры сенсоров (`compose.harness.yml`, `harness.mk`)
 
-Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.5.0}`, профиль `harness`,
+Оба сервиса используют `image: ${HARNESS_IMAGE:-air-harness-runner:0.5.1}`, профиль `harness`,
 `user: ${HARNESS_UID}:${HARNESS_GID}` (make подставляет вызвавшего пользователя), `read_only: true`,
 `tmpfs: /tmp`, `cap_drop: [ALL]`, `no-new-privileges`, репозиторий в `/work:ro` и `./.harness` в `/out`.
 
@@ -223,7 +223,7 @@ flowchart TD
 
 ## 6.8 Подписанные межсервисные вызовы (`libs/common/common/service_auth.py`)
 
-**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search notify` от root: для каждого
+**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search notify graph` от root: для каждого
 сервиса `/keys/<name>/private.pem` (PKCS#8 Ed25519, права 0400, владелец uid 10001, каталог 0500) и
 `/keys/public/<name>.pem` (0444). Идемпотентно: существующие ключи сохраняются. Каждый сервис монтирует
 `subpath: <name>` в `/run/keys/self` и `subpath: public` в `/run/keys/public`, только на чтение.
@@ -290,6 +290,8 @@ asynchronous=False)` · не JSON или обработчик бросил `Valu
 | GET | `/api/posts/{post_id}` | `post_id: int` | content `GET /posts/{id}` | 200 · 404 · 422 · 502 |
 | GET | `/api/search` | `q` 1–200 символов, `author?`, `tag?` (`^[a-z0-9-]{1,32}$`), `limit` 1–50 (10) | search `GET /search` | 200 `{query, hits[]}` · 422 · 502 |
 | GET | `/api/notifications` | `author` (обязателен), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}`, новые первыми · 422 · 502 |
+| GET | `/api/posts/{post_id}/related` | `post_id: int`, `limit` 1–50 (10) | graph `GET /related/{id}` | 200 `{post_id, related[{id, title, author, score, shared_tags, same_author}]}` · 404 · 422 · 502 |
+| GET | `/api/tags/{tag}` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (10) | graph `GET /tags/{tag}` | 200 `{tag, posts, related[{tag, together}]}` · 404 · 422 · 502 |
 
 ### content
 
@@ -318,7 +320,7 @@ sequenceDiagram
 Событие `content.post.created` (3 партиции): ключ = id поста, значение =
 `{"id", "title", "body", "author", "tags", "created_at"}` (`tags` добавлено позже; консьюмеры считают
 отсутствующее поле равным `[]`). Только добавляющие изменения; ломающее изменение требует нового топика.
-Консьюмеры: `search` и `notify`.
+Консьюмеры: `search`, `notify` и `graph`.
 
 ### search
 
@@ -335,6 +337,27 @@ sequenceDiagram
   создаёт второго уведомления.
 - **`GET /outbox?author=&limit=`** (1–50, по умолчанию 20) → `{author, notifications[{post_id, author,
   created_at}]}` в порядке `created_at DESC, post_id DESC`.
+
+### graph
+
+Neo4j (`bolt://neo4j:7687`, пользователь `neo4j`, пароль `GRAPH_DB_PASSWORD`); данные в `DATA_DIR/neo4j`.
+
+```mermaid
+flowchart LR
+    A((Author)) -->|WROTE| P((Post))
+    P -->|TAGGED| T((Tag))
+```
+
+- **Схема**: `db/graph/V1__constraints.cypher` — уникальные `Post.id`, `Author.name`, `Tag.name`; применяет
+  одноразовый `graph-init` (`cypher-shell -f`, `IF NOT EXISTS`) до старта `graph`. Файлы только добавляются.
+- **Запись**: `EventConsumer` (группа `graph`) с обработчиком `index_post` — один `MERGE` для автора, поста
+  (`SET title, created_at`), `WROTE` и для каждого тега `MERGE (t:Tag)` + `TAGGED`. Идемпотентно: повторное событие
+  ничего не меняет. Новая группа консьюмера начинает с самого раннего смещения, поэтому граф сам восстанавливается
+  из топика.
+- **`GET /related/{post_id}?limit=`** (1–50, по умолчанию 10): посты с общими тегами и посты того же автора;
+  `score = |shared_tags| + (1, если тот же автор)`; порядок `score DESC, id DESC`; 404, если поста нет в графе.
+- **`GET /tags/{tag}?limit=`**: `posts` — посты с этим тегом; `related` — теги, встречающиеся вместе с ним,
+  `together` — число постов с обоими, порядок `together DESC, tag`; 404 для неизвестного тега.
 
 ## 6.11 База данных (`db/migrations`)
 
@@ -439,13 +462,14 @@ pull request и `HEAD~1` для push.
 | `GATEWAY_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 9090 / 11434 | порты на хосте |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | база данных |
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | роли сервисов |
+| `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | хранилище графа Neo4j |
 | `LOG_LEVEL` | `INFO` | сервисы |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | куча брокера |
 | `*_TAG` | закреплены | версии образов |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `REVIEW_MODEL`, `LLM_NO_THINK` | пусто (ревью пропускается), `qwen3:8b` | агент-ревьюер (включается явно) |
 | `REVIEW_DIFF_BASE` | пусто | что именно ревьюит ревьюер |
 | `EVAL_TOLERANCE`, `JUDGE_BASE_URL`, `JUDGE_MODEL`, `JUDGE_API_KEY` | 0.05, пусто | eval |
-| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.5.0, 300, `HEAD` | harness |
+| `HARNESS_IMAGE`, `HARNESS_TIMEOUT`, `MIGRATIONS_BASE` | раннер 0.5.1, 300, `HEAD` | harness |
 | `PUBLIC_HOST` | `localhost` | имя хоста в адресах, которые выводит `run.sh` |
 
 Далее: [Демо](07-demo.md) · назад к [оглавлению документации](../README.md).
