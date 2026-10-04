@@ -2,7 +2,7 @@
 # air-harness — the guide in your terminal.
 #
 #   ./help.sh                     what air-harness is and how to start
-#   ./help.sh <topic>             run · commands · urls · harness · agent · prompts · config · troubleshoot
+#   ./help.sh <topic>             run · app · commands · urls · harness · agent · prompts · config · troubleshoot
 #   ./help.sh prompt <n|name>     print one next-step prompt, ready to paste: claude "$(./help.sh prompt 02)"
 #   ./help.sh prompt task "..."   the generic task prompt with your task filled in
 set -uo pipefail
@@ -27,6 +27,7 @@ overview() {
   kv "./run.sh" "build + start everything, smoke-test it, print all URLs and next steps"
   kv "./run.sh --check" "… and prove the harness works (selftest, fast loop, contract suite)"
   kv "./run.sh --console" "… and open the web console: http://127.0.0.1:8090 (API, harness, agent)"
+  kv "./app.sh" "only the application (the RAG services), without the harness: ./help.sh app"
   kv "claude \"\$(./help.sh prompt 01)\"" "hand a coding agent its first prompt (or paste it into any agent)"
   h "The loop (what you and the agent do on every change)"
   p "1. edit   →  2. make harness-fast  →  3. read .harness/report.md  →  4. fix blocking failures first"
@@ -52,6 +53,11 @@ topic_run() {
   p "preflight (docker, compose, make, free ports) → build + start the stack and wait until healthy →"
   p "smoke test through the public API (create, read, search) → optional harness checks → URLs → next steps."
   p "Exit code 0 only when everything it ran passed."
+}
+
+topic_app() {
+  h "./app.sh — the application alone, without the harness"
+  sed -n '2,12p' app.sh | sed 's/^# \{0,1\}/  /'
 }
 
 topic_commands() {
@@ -177,6 +183,7 @@ print_prompt() {
 case "${1:-}" in
   ""|-h|--help|help) overview ;;
   run) topic_run ;;
+  app) topic_app ;;
   commands|make) topic_commands ;;
   urls|status) topic_urls ;;
   harness|loop) topic_harness ;;

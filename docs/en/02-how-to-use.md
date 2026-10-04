@@ -37,6 +37,12 @@ After `./run.sh` you get:
 Internal services (`content`, `search`, PostgreSQL, Kafka) have no host port by design; `run.sh` prints the
 command to reach each one (e.g. `docker compose exec postgres psql -U postgres -d air_harness`).
 
+**Only the application.** `./app.sh` starts the RAG system alone (gateway, content, search, notify, graph and
+their postgres, kafka, neo4j) with nothing from the harness: it needs only Docker and curl. `./app.sh test` runs
+the contract suite, `./app.sh status | logs <service> | down` do the obvious, and `./app.sh export <dir>` writes
+a standalone copy of the application (services, libs, db, infra, contract, compose) with no harness files, which
+runs with the same `./app.sh`. CI runs that exported copy on every PR.
+
 Try the API:
 
 ```bash

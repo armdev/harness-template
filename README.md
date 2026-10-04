@@ -50,6 +50,20 @@ Requirements: Docker Engine 26+ with Compose v2.24+, GNU make, bash, curl. The h
 (`--check`, `--full`) also need `python3` with PyYAML (`pip install pyyaml`). Configuration: every setting has
 a default; `cp .env.example .env` to change one (`./help.sh config`).
 
+### Only the application, without the harness
+
+The RAG system runs on its own: no harness, console, make or python on the host, just Docker and curl.
+
+```bash
+./app.sh                    # build + start gateway, content, search, notify, graph (+ postgres, kafka, neo4j), smoke test, URLs
+./app.sh test               # the API specification (contract suite) against it
+./app.sh status · logs search · down
+./app.sh export ../rag-app  # a standalone copy of the application, with no harness files: cd ../rag-app && ./app.sh
+```
+
+CI exports the application and runs it, plus its contract suite, from that copy on every PR, so the
+application never starts depending on the harness.
+
 ### The console — everything in one web UI
 
 ![air-harness console: overview](docs/assets/console-overview.png)

@@ -38,6 +38,12 @@
 У внутренних сервисов (`content`, `search`, PostgreSQL, Kafka) намеренно нет порта на хосте; `run.sh` выводит
 команду для доступа к каждому (например, `docker compose exec postgres psql -U postgres -d air_harness`).
 
+**Только приложение.** `./app.sh` запускает RAG-систему отдельно (gateway, content, search, notify, graph и их
+postgres, kafka, neo4j) без чего-либо из harness: нужны только Docker и curl. `./app.sh test` запускает
+контрактные тесты, `./app.sh status | logs <сервис> | down` делают очевидное, а `./app.sh export <каталог>`
+записывает самостоятельную копию приложения (сервисы, libs, db, infra, contract, compose) без файлов harness,
+которая запускается тем же `./app.sh`. CI запускает эту экспортированную копию в каждом PR.
+
 Попробуйте API:
 
 ```bash
