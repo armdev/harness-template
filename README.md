@@ -103,14 +103,18 @@ harness.yaml                  manifest: every guide and sensor, its plane, stage
 harness.mk  compose.harness.yml   harness make targets; the sensor containers (static: no network, live: LLM/stack)
 harness/
   harness.py                  runner: run · selftest · coverage · stats · list
+  install.py                  install into another project (--upgrade later); templates/ for its AGENTS.md, CLAUDE.md, ruff.toml
   Dockerfile                  runner image with pinned tool versions (the distributable part)
-  sensors/                    topology_check.py · migrations_check.py · review.py · fixtures/ (seeded defects)
+  sensors/                    topology_check.py · migrations_check.py · review.py · deps_audit.py ·
+                              mutate.py (mutants for unit / contract selftests)
+  sensors/fixtures/           seeded defects for every sensor: files, diffs, baselines, mutants
   rules/semgrep/              organisation rules; messages are written for the agent
   review/RUBRIC.md            one rubric for the coding agent (forward) and the review agent (back)
   skills/                     new-service · new-endpoint · db-migration · new-topic · harness-report · harness-steer
   prompts/                    next-steps/ (guided prompts) · agent/ (task, fix-red, done-check) · review · judge
   hooks/agent-stop.sh         agent Stop hook
   tests/                      tests of the harness itself (make harness-test)
+  CHANGELOG.md  HARNESS.md    releases with first-run impact · design, versioning, steering loop
 docker-compose.yml            the reference system's architecture (checked by the topology sensor)
 services/  libs/common/       gateway · content · search · notify; signed calls, logging, metrics
 db/migrations/                Flyway
@@ -127,6 +131,10 @@ infra/prometheus/             scrape config and alert rules
 | `unit`, `contract` | integration | yes | library tests; the public API behaves as specified |
 | `eval`, `prom-rules` | pipeline | yes | search quality (recall@5, MRR@10) vs. baseline; alert rules parse |
 | `dead-code`, `deps-audit` | continuous | no | drift |
+
+Every sensor has seeded defects that prove it still fires and stays quiet on clean input:
+`make harness-selftest` (static), `make harness-selftest-host` (prom-rules, unit and contract mutants, eval; stack up),
+`make harness-selftest-live` (deps-audit; review-agent with an LLM). `make harness-stats` reads those verdicts.
 
 ## 5. Use it in your own project
 

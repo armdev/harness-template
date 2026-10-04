@@ -27,18 +27,22 @@ docs/                         эта документация
 | Образ раннера | `harness/Dockerfile` | закреплённые инструменты: ruff, semgrep, vulture, pip-audit, pytest, PyYAML, git | — → `air-harness-runner:<ver>` |
 | Контейнеры сенсоров | `compose.harness.yml` | `harness` (плоскость static) и `harness-live` (плоскость live) из одного образа | репозиторий (ro) → `/out` |
 | Цели make | `harness.mk` | точки входа стадий, перезапуск одного сенсора, selftest, coverage, stats, тесты harness | — |
-| Сенсор топологии | `harness/sensors/topology_check.py` | проверяет `docker-compose.yml` на согласованность: T1–T9 | compose, файл алертов, пример env → замечания |
+| Сенсор топологии | `harness/sensors/topology_check.py` | проверяет `docker-compose.yml` на согласованность: T1–T10 | compose, файл алертов, пример env → замечания |
 | Сенсор миграций | `harness/sensors/migrations_check.py` | правила истории Flyway M1–M5 | `db/migrations`, git → замечания |
-| Сенсор ревью | `harness/sensors/review.py` | LLM применяет рубрику к диффу | дифф, рубрика, промпт → замечания (рекомендательно) |
+| Сенсор ревью | `harness/sensors/review.py` | LLM применяет рубрику к диффу (`REVIEW_SCOPE`; `REVIEW_DIFF_FILE` для засеянных diff) | дифф, рубрика, промпт → замечания (рекомендательно) |
+| Аудит зависимостей | `harness/sensors/deps_audit.py` | pip-audit по каждому файлу requirements; код 126 (BLIND), если проверить не удалось | файлы requirements, сеть → замечания |
+| Помощник мутаций | `harness/sensors/mutate.py` | применяет один мутант к копии `libs/common` или `services/gateway` и запускает набор тестов, который должен его поймать | `mutant.yml` → код возврата набора |
 | Правила semgrep | `harness/rules/semgrep/python.yml` | правила организации, сообщения которых говорят, что писать вместо | код → замечания |
 | Белый список vulture | `harness/rules/vulture_whitelist.py` | имена, используемые фреймворком, которые выглядят мёртвыми | — |
-| Засеянные дефекты | `harness/sensors/fixtures/` | доказывают, что сенсор срабатывает (`# expect: <rule>`) и молчит (`# expect: clean`) | — |
+| Засеянные дефекты | `harness/sensors/fixtures/` | доказывают, что сенсор срабатывает (`# expect: <rule>`) и молчит (`# expect: clean`): файлы, diff, baseline для eval, мутанты — они есть у каждого сенсора | — → `.harness/selftest.json` (читает `stats`) |
 | Рубрика | `harness/review/RUBRIC.md` | R1–R9: одна рубрика для агента (вперёд) и ревьюера (назад) | — |
 | Навыки | `harness/skills/*/SKILL.md` | процедуры: new-service, new-endpoint, db-migration, new-topic, harness-report, harness-steer | — |
 | Промпты | `harness/prompts/` | системные промпты ревьюера и судьи; шаблоны для агента; промпты следующих шагов 01–08 | — |
 | Stop-хук | `harness/hooks/agent-stop.sh` | не даёт агенту завершиться, пока статические сенсоры красные | JSON хука в stdin → код 0/2 |
 | Тесты harness | `harness/tests/` | тесты раннера и сенсоров | — |
 | Журнал изменений | `harness/CHANGELOG.md` | версии и ожидаемый эффект новых правил при первом запуске | — |
+| Установщик | `harness/install.py` | ставит harness в другой проект с подходящим ему манифестом; `--upgrade` заменяет только механизм апстрима | каталог проекта → файлы harness, `harness.yaml` |
+| Шаблоны установки | `harness/templates/` | `AGENTS.md`, `CLAUDE.md`, `ruff.toml` для проекта, где их нет | — |
 
 ### Сенсоры
 
