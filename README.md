@@ -62,7 +62,9 @@ offers two sample datasets to start with (also `+ sample data` on Analyze).
 
 **Sample data.** `./app.sh seed bank` (or `make seed d=bank`) loads **100 banking posts** by 10 authors: loans,
 credit and credit scores, debit and accounts, mortgages, cards, payments, fraud, compliance (KYC, AML) and treasury,
-linked by 35 tags into one knowledge graph; `./app.sh seed general` loads 24 engineering posts. Seeding goes through
+linked by 35 tags into one knowledge graph; `./app.sh seed ibank` loads 46 posts about **iBank**, a stand-in name
+for an Armenian bank modelled on the public website of Ardshinbank (ardshinbank.am): cards, loans and mortgages,
+deposits, mobile and business banking, STATUS premium banking, each post with its source URL; `./app.sh seed general` loads 24 engineering posts. Seeding goes through
 the public API, so search, the graph, notify and Chat all see the posts, and it is safe to repeat (posts already
 there are skipped). Datasets are JSON files in `services/web/static/datasets/`; add your own and seed it by name or
 path.

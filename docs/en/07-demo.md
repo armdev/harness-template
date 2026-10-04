@@ -60,6 +60,12 @@ post expanded, links scores to cards, loans, mortgage underwriting and budgeting
 
 ![banking dataset: graph explorer](../assets/bank-graph.png)
 
+**iBank dataset** (`./app.sh seed ibank`): 46 posts about iBank, a stand-in name for a bank modelled on a real
+bank's public website (ardshinbank.am), every post with its source URL. The `#ibank` tag page shows how its cards,
+loans, deposits, business and digital banking topics connect.
+
+![iBank dataset: tag page](../assets/ibank-tag.png)
+
 **Write**: publish, then watch every consumer of `content.post.created` catch up.
 
 ![rag-web write](../assets/web-write.png)
