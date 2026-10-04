@@ -219,7 +219,7 @@ flowchart TD
 
 ## 6.8 Signed service-to-service calls (`libs/common/common/service_auth.py`)
 
-**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search notify graph` as root: per service
+**Keys.** `service-keys` runs `python -m common.keygen /keys gateway content search notify graph web` as root: per service
 `/keys/<name>/private.pem` (PKCS#8 Ed25519, mode 0400, owner uid 10001, directory 0500) and
 `/keys/public/<name>.pem` (0444). Idempotent: existing keys are kept. Each service mounts
 `subpath: <name>` at `/run/keys/self` and `subpath: public` at `/run/keys/public`, read-only.
@@ -287,6 +287,8 @@ extra of `libs/common`.
 | GET | `/api/notifications` | `author` (required), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}` newest first · 422 · 502 |
 | GET | `/api/posts/{post_id}/related` | `post_id: int`, `limit` 1–50 (10) | graph `GET /related/{id}` | 200 `{post_id, related[{id, title, author, score, shared_tags, same_author}]}` · 404 · 422 · 502 |
 | GET | `/api/tags/{tag}` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (10) | graph `GET /tags/{tag}` | 200 `{tag, posts, related[{tag, together}]}` · 404 · 422 · 502 |
+| GET | `/api/tags/{tag}/posts` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (20) | graph `GET /tags/{tag}/posts` | 200 `{tag, posts[{id, title, author}]}` (newest first) · 404 · 422 · 502 |
+| GET | `/api/graph/overview` | `limit` 1–50 (10) | graph `GET /overview` | 200 `{posts, authors, tags, top_tags[{tag, posts}], top_authors[{author, posts}], tag_links[{source, target, together}]}` · 422 · 502 |
 
 ### content
 
@@ -351,6 +353,30 @@ flowchart LR
   404 when the post is not in the graph (unknown, or not indexed yet).
 - **`GET /tags/{tag}?limit=`**: `posts` = posts carrying the tag; `related` = co-occurring tags with
   `together` = posts carrying both, order `together DESC, tag`; 404 for an unknown tag.
+- **`GET /tags/{tag}/posts?limit=`** (1–50, default 20): the newest posts carrying the tag, `{id, title, author}`;
+  404 for an unknown tag.
+- **`GET /overview?limit=`** (1–50, default 10): `posts`, `authors`, `tags` (node counts); `top_tags` and
+  `top_authors` by post count; `tag_links` = pairs among the top tags with `together` = posts carrying both
+  (`source < target`, order `together DESC`). Feeds the portal's Analyze page and topic map.
+
+### web (rag-web)
+
+The portal: a FastAPI app (`services/web/app.py`) that serves a dependency-free browser client
+(`services/web/static/`: `index.html`, `app.js` — router and pages, `graph.js` — force-directed SVG graph,
+`style.css`, `sample-posts.json`) and forwards `GET`/`POST /api/{path}` to the gateway with `SignedClient`
+(signed as `web`; the gateway API is public, so it trusts no list). Same origin for page and API: no CORS.
+Body limit 64 KiB (413), `..` segments rejected (404), other methods 405, gateway down → 502; status and body
+of the gateway pass through unchanged. Host port `WEB_PORT` (8081).
+
+| Page | Route | Calls |
+|---|---|---|
+| Analyze | `#/` | `/api/graph/overview` — counts, top tags/authors, topic map (tag co-occurrence graph), strongest pairs; loads sample posts on an empty graph |
+| Search | `#/search?q=&tag=&author=` | `/api/search` — results with highlights, tag and author facets to narrow |
+| Write | `#/write` | `POST /api/posts`, then polls search, `/related` and `/api/notifications` to show each consumer catching up |
+| Post | `#/post/{id}` | `/api/posts/{id}`, `/related` — body, related posts with score, neighbourhood graph |
+| Tag | `#/tag/{tag}` | `/api/tags/{tag}`, `/api/tags/{tag}/posts` — co-occurring tags, newest posts, authors |
+| Author | `#/author/{name}` | `/api/posts?author=`, `/api/notifications` — posts, topics, notifications, author map |
+| Graph explorer | `#/graph?tag=\|post=\|author=` | click a node to expand it (tag → posts + co-tags, post → author + tags + related, author → posts + tags) |
 
 ## 6.11 Database (`db/migrations`)
 
@@ -453,7 +479,7 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | Variable | Default | Purpose |
 |---|---|---|
 | `DATA_DIR` | `/var/tmp/air-harness` | persistent data (postgres, kafka, neo4j, ollama) |
-| `GATEWAY_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 9090 / 11434 | host ports |
+| `GATEWAY_PORT` / `WEB_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 8081 / 9090 / 11434 | host ports |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | database |
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | service roles |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | Neo4j graph store |

@@ -223,7 +223,7 @@ flowchart TD
 
 ## 6.8 Подписанные межсервисные вызовы (`libs/common/common/service_auth.py`)
 
-**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search notify graph` от root: для каждого
+**Ключи.** `service-keys` запускает `python -m common.keygen /keys gateway content search notify graph web` от root: для каждого
 сервиса `/keys/<name>/private.pem` (PKCS#8 Ed25519, права 0400, владелец uid 10001, каталог 0500) и
 `/keys/public/<name>.pem` (0444). Идемпотентно: существующие ключи сохраняются. Каждый сервис монтирует
 `subpath: <name>` в `/run/keys/self` и `subpath: public` в `/run/keys/public`, только на чтение.
@@ -292,6 +292,8 @@ asynchronous=False)` · не JSON или обработчик бросил `Valu
 | GET | `/api/notifications` | `author` (обязателен), `limit` 1–50 (20) | notify `GET /outbox` | 200 `{author, notifications[]}`, новые первыми · 422 · 502 |
 | GET | `/api/posts/{post_id}/related` | `post_id: int`, `limit` 1–50 (10) | graph `GET /related/{id}` | 200 `{post_id, related[{id, title, author, score, shared_tags, same_author}]}` · 404 · 422 · 502 |
 | GET | `/api/tags/{tag}` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (10) | graph `GET /tags/{tag}` | 200 `{tag, posts, related[{tag, together}]}` · 404 · 422 · 502 |
+| GET | `/api/tags/{tag}/posts` | `tag` `^[a-z0-9-]{1,32}$`, `limit` 1–50 (20) | graph `GET /tags/{tag}/posts` | 200 `{tag, posts[{id, title, author}]}` (newest first) · 404 · 422 · 502 |
+| GET | `/api/graph/overview` | `limit` 1–50 (10) | graph `GET /overview` | 200 `{posts, authors, tags, top_tags[{tag, posts}], top_authors[{author, posts}], tag_links[{source, target, together}]}` · 422 · 502 |
 
 ### content
 
@@ -358,6 +360,30 @@ flowchart LR
   `score = |shared_tags| + (1, если тот же автор)`; порядок `score DESC, id DESC`; 404, если поста нет в графе.
 - **`GET /tags/{tag}?limit=`**: `posts` — посты с этим тегом; `related` — теги, встречающиеся вместе с ним,
   `together` — число постов с обоими, порядок `together DESC, tag`; 404 для неизвестного тега.
+- **`GET /tags/{tag}/posts?limit=`** (1–50, по умолчанию 20): самые новые посты с тегом, `{id, title, author}`;
+  404 для неизвестного тега.
+- **`GET /overview?limit=`** (1–50, по умолчанию 10): `posts`, `authors`, `tags` (число узлов); `top_tags` и
+  `top_authors` по числу постов; `tag_links` — пары среди топ-тегов, `together` — число постов с обоими
+  (`source < target`, порядок `together DESC`). Питает страницу «Анализ» и карту тем портала.
+
+### web (rag-web)
+
+Портал: приложение FastAPI (`services/web/app.py`), которое отдаёт браузерный клиент без зависимостей
+(`services/web/static/`: `index.html`, `app.js` — роутер и страницы, `graph.js` — силовая раскладка графа в SVG,
+`style.css`, `sample-posts.json`) и проксирует `GET`/`POST /api/{path}` в gateway через `SignedClient`
+(подпись `web`; API gateway публичный, списка доверенных у него нет). Страница и API на одном origin: CORS не нужен.
+Лимит тела 64 КиБ (413), сегменты `..` отклоняются (404), другие методы — 405, gateway недоступен — 502; статус и
+тело ответа gateway передаются без изменений. Порт на хосте `WEB_PORT` (8081).
+
+| Страница | Маршрут | Вызовы |
+|---|---|---|
+| Анализ | `#/` | `/api/graph/overview` — счётчики, топ тегов и авторов, карта тем (граф совместных тегов), сильнейшие пары; на пустом графе загружает примеры постов |
+| Поиск | `#/search?q=&tag=&author=` | `/api/search` — результаты с подсветкой, фасеты по тегам и авторам |
+| Публикация | `#/write` | `POST /api/posts`, затем опрос search, `/related` и `/api/notifications`: видно, как догоняет каждый консьюмер |
+| Пост | `#/post/{id}` | `/api/posts/{id}`, `/related` — текст, связанные посты с оценкой, граф окрестности |
+| Тег | `#/tag/{tag}` | `/api/tags/{tag}`, `/api/tags/{tag}/posts` — совместные теги, новые посты, авторы |
+| Автор | `#/author/{name}` | `/api/posts?author=`, `/api/notifications` — посты, темы, уведомления, карта автора |
+| Обозреватель графа | `#/graph?tag=\|post=\|author=` | клик по узлу раскрывает соседей (тег → посты и теги, пост → автор, теги и связанные, автор → посты и теги) |
 
 ## 6.11 База данных (`db/migrations`)
 
@@ -459,7 +485,7 @@ pull request и `HEAD~1` для push.
 | Переменная | По умолчанию | Назначение |
 |---|---|---|
 | `DATA_DIR` | `/var/tmp/air-harness` | постоянные данные (postgres, kafka, ollama) |
-| `GATEWAY_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 9090 / 11434 | порты на хосте |
+| `GATEWAY_PORT` / `WEB_PORT` / `PROMETHEUS_PORT` / `OLLAMA_PORT` | 8080 / 8081 / 9090 / 11434 | порты на хосте |
 | `POSTGRES_DB`, `POSTGRES_PASSWORD` | `air_harness`, `postgres-dev` | база данных |
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev` | роли сервисов |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | хранилище графа Neo4j |

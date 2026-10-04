@@ -91,6 +91,8 @@ flowchart LR
 
 ```mermaid
 flowchart LR
+    browser(["Браузер"]) -->|"HTTP :8081"| web["web · rag-web<br/>портал"]
+    web -->|"подпись Ed25519 · /api/*"| gw
     client(["Клиент / контрактные тесты / eval"]) -->|"HTTP :8080"| gw["gateway<br/>публичный API"]
     gw -->|"подпись Ed25519"| content["content<br/>владеет постами"]
     gw -->|"подпись Ed25519"| search["search<br/>полнотекстовый индекс"]
@@ -104,16 +106,17 @@ flowchart LR
     search -->|"search_svc · схема search"| pg
     notify -->|"notify_svc · схема notify"| pg
     kg -->|"bolt · Author-WROTE-Post-TAGGED-Tag"| neo[(Neo4j)]
-    prom[Prometheus] -.->|"scrape /metrics"| gw & content & search & notify & kg
+    prom[Prometheus] -.->|"scrape /metrics"| web & gw & content & search & notify & kg
 ```
 
 | Сервис | Ответственность | Доступ | Данные | Доверяет |
 |---|---|---|---|---|
+| web | портал rag-web: отдаёт браузерный клиент (анализ, поиск, обозреватель графа, публикация) и проксирует его вызовы `/api/*` в gateway | хост `:8081` | — | (публичный) |
 | gateway | публичный HTTP API; валидирует и проксирует; данных не хранит | хост `:8080` | — | (публичный) |
 | content | создаёт, читает и перечисляет посты (с тегами); публикует `content.post.created` | внутренний `:8000` | `content.posts` (роль `content_svc`) | gateway |
 | search | индексирует события; полнотекстовый поиск с фильтрами по автору и тегу | внутренний `:8000` | `search.documents` (роль `search_svc`) | gateway |
 | notify | записывает одно уведомление на каждый новый пост (замена e-mail); выдаёт их список | внутренний `:8000` | `notify.outbox` (роль `notify_svc`) | gateway |
-| graph | граф знаний авторов, постов и тегов; связанные посты, окрестность тега | внутренний `:8000` | Neo4j (`Author`, `Post`, `Tag`; схема в `db/graph`) | gateway |
+| graph | граф знаний авторов, постов и тегов; связанные посты, окрестность тега, посты тега, обзор | внутренний `:8000` | Neo4j (`Author`, `Post`, `Tag`; схема в `db/graph`) | gateway |
 
 ### Сквозные решения
 
@@ -143,6 +146,7 @@ flowchart TB
     sk --> gw[gateway]
     sk & gi & ki -->|completed| kg
     content & search & notify & kg -->|healthy| gw
+    gw -->|healthy| web[web]
 ```
 
 Опциональные профили: `observability` (Prometheus), `local-llm` (Ollama), `tools` (контейнеры contract, unit,

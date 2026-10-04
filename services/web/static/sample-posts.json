@@ -1,0 +1,230 @@
+[
+ {
+  "author": "alice",
+  "title": "Retrieval-augmented generation in one page",
+  "body": "RAG retrieves the passages most relevant to a question and hands them to a language model as context. Retrieval quality bounds answer quality.",
+  "tags": [
+   "rag",
+   "llm",
+   "search"
+  ]
+ },
+ {
+  "author": "alice",
+  "title": "Chunking documents for retrieval",
+  "body": "Chunks that follow headings beat fixed windows. Overlap a little; keep titles with every chunk so the retriever sees the topic.",
+  "tags": [
+   "rag",
+   "search",
+   "embeddings"
+  ]
+ },
+ {
+  "author": "alice",
+  "title": "Hybrid search: full text plus vectors",
+  "body": "Full-text search nails exact terms and identifiers, vectors catch paraphrases. Rank fusion of both is a strong default.",
+  "tags": [
+   "search",
+   "embeddings",
+   "rag"
+  ]
+ },
+ {
+  "author": "alice",
+  "title": "Evaluating a retriever with recall@k",
+  "body": "Keep a small labelled set of questions with the posts that answer them; track recall@5 and MRR on every change.",
+  "tags": [
+   "rag",
+   "evaluation",
+   "search"
+  ]
+ },
+ {
+  "author": "bob",
+  "title": "Event sourcing with Kafka",
+  "body": "Store facts as events; derive every read model from the log. Replays rebuild any projection from scratch.",
+  "tags": [
+   "kafka",
+   "events",
+   "architecture"
+  ]
+ },
+ {
+  "author": "bob",
+  "title": "Idempotent consumers",
+  "body": "At-least-once delivery means duplicates. Key every write on the event id so a redelivery changes nothing.",
+  "tags": [
+   "kafka",
+   "events",
+   "reliability"
+  ]
+ },
+ {
+  "author": "bob",
+  "title": "Commit offsets after the work",
+  "body": "Auto-commit acknowledges messages you have not processed yet. Commit only after the handler succeeded.",
+  "tags": [
+   "kafka",
+   "reliability"
+  ]
+ },
+ {
+  "author": "bob",
+  "title": "One topic, many consumer groups",
+  "body": "Search, graph and notifications each read the same topic with their own group, so each keeps its own position.",
+  "tags": [
+   "kafka",
+   "architecture",
+   "events"
+  ]
+ },
+ {
+  "author": "carol",
+  "title": "Knowledge graphs next to search",
+  "body": "Search finds documents by their words, a graph by their relations: shared topics, authors, citations.",
+  "tags": [
+   "graphs",
+   "neo4j",
+   "search"
+  ]
+ },
+ {
+  "author": "carol",
+  "title": "Modelling posts, authors and tags in Neo4j",
+  "body": "(:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag). MERGE on unique keys keeps writes idempotent.",
+  "tags": [
+   "neo4j",
+   "graphs",
+   "architecture"
+  ]
+ },
+ {
+  "author": "carol",
+  "title": "Graph-boosted RAG",
+  "body": "Expand retrieved posts with their graph neighbours before ranking: related context that shares no words with the question.",
+  "tags": [
+   "rag",
+   "graphs",
+   "neo4j"
+  ]
+ },
+ {
+  "author": "carol",
+  "title": "Cypher patterns for recommendations",
+  "body": "Two posts are related when they share tags; weight by the number of shared tags and the same author.",
+  "tags": [
+   "neo4j",
+   "graphs"
+  ]
+ },
+ {
+  "author": "dave",
+  "title": "Signed service-to-service calls",
+  "body": "Every internal call carries an Ed25519 signature over method, path, body and time; callees accept only listed callers.",
+  "tags": [
+   "security",
+   "architecture"
+  ]
+ },
+ {
+  "author": "dave",
+  "title": "Least-privilege database roles",
+  "body": "One role and schema per service: a bug in search cannot read or write content's tables.",
+  "tags": [
+   "security",
+   "postgres"
+  ]
+ },
+ {
+  "author": "dave",
+  "title": "Secrets outside the image",
+  "body": "Keys are generated at start into a volume; images carry no secrets and run read-only.",
+  "tags": [
+   "security",
+   "reliability"
+  ]
+ },
+ {
+  "author": "erin",
+  "title": "Postgres full-text search",
+  "body": "tsvector plus a GIN index and websearch_to_tsquery give phrase, OR and exclusion queries with ranking.",
+  "tags": [
+   "postgres",
+   "search"
+  ]
+ },
+ {
+  "author": "erin",
+  "title": "Schema migrations with Flyway",
+  "body": "Versioned SQL files, never edited after commit; every service's schema evolves through them.",
+  "tags": [
+   "postgres",
+   "flyway",
+   "reliability"
+  ]
+ },
+ {
+  "author": "erin",
+  "title": "Embeddings in Postgres with pgvector",
+  "body": "Keep vectors next to the rows they describe; an HNSW index makes nearest-neighbour search fast.",
+  "tags": [
+   "postgres",
+   "embeddings",
+   "rag"
+  ]
+ },
+ {
+  "author": "frank",
+  "title": "Golden signals for every service",
+  "body": "Rate, errors, latency per service with the same metric names; alerts written once, applied to all.",
+  "tags": [
+   "observability",
+   "reliability"
+  ]
+ },
+ {
+  "author": "frank",
+  "title": "Tracing a post through the pipeline",
+  "body": "A request id travels from the gateway through content to Kafka consumers; logs join on it.",
+  "tags": [
+   "observability",
+   "events",
+   "kafka"
+  ]
+ },
+ {
+  "author": "frank",
+  "title": "Alerting on what users feel",
+  "body": "Page on error rate and latency at the edge; ticket on internal saturation.",
+  "tags": [
+   "observability"
+  ]
+ },
+ {
+  "author": "alice",
+  "title": "Prompting with retrieved context",
+  "body": "Quote the retrieved passages, ask for citations, and allow 'not in the context' as an answer.",
+  "tags": [
+   "llm",
+   "rag"
+  ]
+ },
+ {
+  "author": "carol",
+  "title": "Tag co-occurrence as a topic map",
+  "body": "Tags that often share a post form clusters; the clusters are your topics.",
+  "tags": [
+   "graphs",
+   "evaluation"
+  ]
+ },
+ {
+  "author": "bob",
+  "title": "Backpressure in consumers",
+  "body": "A slow consumer only falls behind; the log keeps the events until it catches up.",
+  "tags": [
+   "kafka",
+   "reliability"
+  ]
+ }
+]

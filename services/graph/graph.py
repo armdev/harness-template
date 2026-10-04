@@ -39,6 +39,41 @@ ORDER BY together DESC, tag
 LIMIT $limit
 """
 
+TAGGED_POSTS = """
+MATCH (:Tag {name: $tag})<-[:TAGGED]-(p:Post)<-[:WROTE]-(a:Author)
+RETURN p.id AS id, p.title AS title, a.name AS author
+ORDER BY id DESC
+LIMIT $limit
+"""
+
+COUNTS = """
+CALL { MATCH (p:Post) RETURN count(p) AS posts }
+CALL { MATCH (a:Author) RETURN count(a) AS authors }
+CALL { MATCH (t:Tag) RETURN count(t) AS tags }
+RETURN posts, authors, tags
+"""
+
+TOP_TAGS = """
+MATCH (t:Tag)<-[:TAGGED]-(p:Post)
+RETURN t.name AS tag, count(p) AS posts
+ORDER BY posts DESC, tag
+LIMIT $limit
+"""
+
+TOP_AUTHORS = """
+MATCH (a:Author)-[:WROTE]->(p:Post)
+RETURN a.name AS author, count(p) AS posts
+ORDER BY posts DESC, author
+LIMIT $limit
+"""
+
+TAG_LINKS = """
+MATCH (a:Tag)<-[:TAGGED]-(p:Post)-[:TAGGED]->(b:Tag)
+WHERE a.name IN $tags AND b.name IN $tags AND a.name < b.name
+RETURN a.name AS source, b.name AS target, count(p) AS together
+ORDER BY together DESC, source, target
+"""
+
 
 def index_post(driver: Driver, event: dict) -> None:
     """EventConsumer handler. KeyError (missing field) = malformed event: skipped. Driver errors = retried."""
@@ -75,3 +110,19 @@ def tag_neighbourhood(driver: Driver, tag: str, limit: int) -> dict | None:
         return None
     co = driver.execute_query(CO_TAGS, {"tag": tag, "limit": limit}).records
     return {"tag": tag, "posts": rows[0]["posts"], "related": [r.data() for r in co]}
+
+
+def tagged_posts(driver: Driver, tag: str, limit: int) -> list[dict] | None:
+    """The newest posts carrying `tag`; None if the tag is unknown."""
+    rows = [r.data() for r in driver.execute_query(TAGGED_POSTS, {"tag": tag, "limit": limit}).records]
+    return rows or None
+
+
+def overview(driver: Driver, limit: int) -> dict:
+    """Size of the graph, its `limit` biggest tags and authors, and how often those tags appear together."""
+    counts = driver.execute_query(COUNTS).records[0].data()
+    top_tags = [r.data() for r in driver.execute_query(TOP_TAGS, {"limit": limit}).records]
+    top_authors = [r.data() for r in driver.execute_query(TOP_AUTHORS, {"limit": limit}).records]
+    names = [t["tag"] for t in top_tags]
+    links = [r.data() for r in driver.execute_query(TAG_LINKS, {"tags": names}).records] if names else []
+    return {**counts, "top_tags": top_tags, "top_authors": top_authors, "tag_links": links}

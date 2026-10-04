@@ -27,6 +27,7 @@ it back, finds it through search, and prints where everything is:
 
 ```
 Accessible URLs
+  Web portal (rag-web)       http://localhost:8081  analyze · search · graph · write
   Public API                 http://localhost:8080  (opens the docs)
   API docs (Swagger UI)      http://localhost:8080/docs
   API docs (ReDoc)           http://localhost:8080/redoc
@@ -50,12 +51,23 @@ Requirements: Docker Engine 26+ with Compose v2.24+, GNU make, bash, curl. The h
 (`--check`, `--full`) also need `python3` with PyYAML (`pip install pyyaml`). Configuration: every setting has
 a default; `cp .env.example .env` to change one (`./help.sh config`).
 
+### rag-web — the portal
+
+http://localhost:8081 is the application's own web client, served by the `web` service and talking only to the
+gateway. **Analyze** shows the knowledge graph at a glance (counts, top tags and authors, a topic map of tags that
+share posts); **Search** finds posts by their words with tag and author facets; **Graph** is an explorer you grow
+by clicking nodes (tag → posts, post → author, tags and related posts, author → posts); **Write** publishes a post
+and shows search, graph and notify picking it up. Every post, tag and author has its own page. An empty graph
+offers 24 sample posts to start with.
+
+![rag-web: analyze](docs/assets/web-analyze.png)
+
 ### Only the application, without the harness
 
 The RAG system runs on its own: no harness, console, make or python on the host, just Docker and curl.
 
 ```bash
-./app.sh                    # build + start gateway, content, search, notify, graph (+ postgres, kafka, neo4j), smoke test, URLs
+./app.sh                    # build + start web, gateway, content, search, notify, graph (+ postgres, kafka, neo4j), smoke test, URLs
 ./app.sh test               # the API specification (contract suite) against it
 ./app.sh status · logs search · down
 ./app.sh export ../rag-app  # a standalone copy of the application, with no harness files: cd ../rag-app && ./app.sh
@@ -149,7 +161,7 @@ harness/
   tests/                      tests of the harness itself (make harness-test)
   CHANGELOG.md  HARNESS.md    releases with first-run impact · design, versioning, steering loop
 docker-compose.yml            the reference system's architecture (checked by the topology sensor)
-services/  libs/common/       gateway · content · search · notify · graph (Neo4j); signed calls, logging, metrics
+services/  libs/common/       web (rag-web portal) · gateway · content · search · notify · graph (Neo4j); signed calls, logging, metrics
 db/migrations/  db/graph/     Flyway (PostgreSQL) · Cypher constraints (Neo4j, applied by graph-init)
 contract/  eval/  tools/      API specification · search-quality eval · test tooling image
 infra/prometheus/             scrape config and alert rules

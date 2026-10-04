@@ -37,7 +37,12 @@ After `./run.sh` you get:
 Internal services (`content`, `search`, PostgreSQL, Kafka) have no host port by design; `run.sh` prints the
 command to reach each one (e.g. `docker compose exec postgres psql -U postgres -d air_harness`).
 
-**Only the application.** `./app.sh` starts the RAG system alone (gateway, content, search, notify, graph and
+**The portal.** http://localhost:8081 (`WEB_PORT`) is rag-web, the application's web client: Analyze (counts,
+top tags and authors, topic map), Search (with tag and author facets), Graph (an explorer you expand by clicking
+nodes), Write (publish and watch search, graph and notify pick the post up), and a page per post, tag and author.
+It calls only the gateway, through the `web` service ([LLD](06-low-level-design.md#web-rag-web)).
+
+**Only the application.** `./app.sh` starts the RAG system alone (web, gateway, content, search, notify, graph and
 their postgres, kafka, neo4j) with nothing from the harness: it needs only Docker and curl. `./app.sh test` runs
 the contract suite, `./app.sh status | logs <service> | down` do the obvious, and `./app.sh export <dir>` writes
 a standalone copy of the application (services, libs, db, infra, contract, compose) with no harness files, which
@@ -147,7 +152,7 @@ verdict, the report, and an **Agent** tab. There you compose a prompt (a guided 
 your task filled in) and either copy it or press **Run agent**: the console runs `AGENT_CMD "<prompt>"`
 (default `claude -p --permission-mode acceptEdits`) in the repository and streams its output. The timeline next
 to it shows every harness run from the ledger, including the ones the agent triggers through its Stop hook — the
-loop, made visible. See the [demo](07-demo.md#6-the-web-console).
+loop, made visible. See the [demo](07-demo.md#7-the-web-console).
 
 Claude Code applies this repository's pre-approved commands (`make harness-*`) only after the folder is trusted:
 run `claude` in it once and accept the prompt. Settings: `CONSOLE_PORT`, `AGENT_CMD` (`.env.example`).

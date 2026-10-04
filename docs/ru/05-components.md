@@ -86,7 +86,8 @@ docs/                         эта документация
 | content | `services/content/app.py` | `POST /posts`, `GET /posts/{id}`, `GET /posts?author=`; пишет в `content.posts`; публикует `content.post.created` |
 | search | `services/search/app.py`, `indexer.py` | `GET /search` (фильтры по автору и тегу); `EventConsumer` с обработчиком, делающим upsert в `search.documents`; ранжирование полнотекстового поиска Postgres |
 | notify | `services/notify/app.py`, `consumer.py` | `GET /outbox`; `EventConsumer` с обработчиком, записывающим одну строку `notify.outbox` на пост (идемпотентно) |
-| graph | `services/graph/app.py`, `graph.py` | `GET /related/{post_id}`, `GET /tags/{tag}`; `EventConsumer` с обработчиком, делающим MERGE `(:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag)` в Neo4j (идемпотентно) |
+| web (rag-web) | `services/web/app.py`, `static/` | портал: браузерный клиент (анализ, поиск, обозреватель графа, публикация, страницы поста, тега, автора) и подписанный прокси `/api/*` в gateway |
+| graph | `services/graph/app.py`, `graph.py` | `GET /related/{post_id}`, `GET /tags/{tag}`, `GET /tags/{tag}/posts`, `GET /overview`; `EventConsumer` с обработчиком, делающим MERGE `(:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag)` в Neo4j (идемпотентно) |
 | Схема графа | `db/graph/*.cypher`, `graph-init` | ограничения уникальности `Post.id`, `Author.name`, `Tag.name`; применяются `cypher-shell` до старта `graph` |
 | Миграции | `db/migrations/V1..V7` | роли `content_svc`, `search_svc`, `notify_svc`; схемы `content`, `search`, `notify`; таблицы, индексы, теги, права |
 | One-shot-сервисы | `docker-compose.yml` | `storage-init` (структура DATA_DIR), `service-keys` (идентичности), `migrate` (Flyway), `kafka-init` (топики) |

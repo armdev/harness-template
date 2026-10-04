@@ -4,7 +4,8 @@ You are working in a Python microservice system run by one `docker-compose.yml`.
 architecture: services, their identities, who may call whom, and which database role each one uses.
 
 ```
-client ──HTTP──> gateway ──signed──> content ──Kafka: content.post.created──┬──> search
+browser ──HTTP──> web (rag-web portal) ──signed──┐
+client ──HTTP──> gateway <───────────────────────┘ ──signed──> content ──Kafka: content.post.created──┬──> search
                     ├─────signed──────────────────────────────────────────────┼──> search
                     ├─────signed──────────────────────────────────────────────┼──> notify
                     └─────signed──────────────────────────────────────────────└──> graph
