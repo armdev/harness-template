@@ -60,6 +60,18 @@ jobs:
           curl -fsS --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:8090/api/state > /dev/null
           curl -fsS http://127.0.0.1:8090/gw/openapi.json | grep -q '"/api/posts"'
 
+      - name: The application alone (exported without the harness, started, contract suite)
+        if: github.event_name != 'schedule'
+        run: |
+          ./run.sh --down
+          ./app.sh export "$RUNNER_TEMP/rag-app"
+          for p in harness harness.yaml harness.mk compose.harness.yml AGENTS.md; do
+            test ! -e "$RUNNER_TEMP/rag-app/$p" || { echo "export contains $p"; exit 1; }
+          done
+          cd "$RUNNER_TEMP/rag-app"
+          ./app.sh up
+          ./app.sh test
+
       - name: Report
         if: always()
         run: |
