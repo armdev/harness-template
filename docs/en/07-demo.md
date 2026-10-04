@@ -45,6 +45,13 @@ rag-web, the application's own client (service `web`), captured with Chromium af
 
 ![rag-web graph explorer](../assets/web-graph.png)
 
+**Chat**: the question goes through search, then the graph, then content; the answer streams in and cites the
+posts it used, which the side panel lists (cited ones marked) with a graph of their tags. Captured in the build
+sandbox with a stand-in OpenAI-compatible model that only lists the posts it was given; with Ollama or a hosted
+model the answer is written prose, the rest of the page is the same.
+
+![rag-web chat](../assets/web-chat.png)
+
 **Write**: publish, then watch every consumer of `content.post.created` catch up.
 
 ![rag-web write](../assets/web-write.png)

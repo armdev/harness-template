@@ -338,8 +338,159 @@ async function pageGraph(_arg, q) {
   if (start) await seed(start, q.get(start)); else await topicMap();
 }
 
+// ------------------------------------------------------------------ Chat
+const CHAT_KEY = "rag-web.chat";
+const SUGGESTIONS = ["How do Kafka consumers avoid processing an event twice?", "What is graph-boosted RAG?",
+  "How do services authenticate each other?", "How should I evaluate a retriever?"];
+
+function loadChat() {
+  try { return JSON.parse(sessionStorage.getItem(CHAT_KEY) || "[]"); } catch { return []; }
+}
+function saveChat(turns) {
+  try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(turns)); } catch { /* storage unavailable */ }
+}
+
+// Markdown-lite for answers: escape first, then **bold**, `code`, "- " lists, paragraphs, and [#id] citations.
+function renderAnswer(text, sources) {
+  const known = new Set((sources || []).map(s => s.id));
+  const inline = s => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\[#(\d+)\]/g, (m, id) => known.has(+id)
+      ? `<a class="cite" href="#/post/${id}" data-cite="${id}">#${id}</a>` : `<span class="cite dead">#${id}</span>`);
+  const out = []; let list = null;
+  for (const line of text.split("\n")) {
+    const m = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)$/);
+    if (m) { (list ||= []).push(`<li>${inline(m[1])}</li>`); continue; }
+    if (list) { out.push(`<ul>${list.join("")}</ul>`); list = null; }
+    if (line.trim()) out.push(`<p>${inline(line)}</p>`);
+  }
+  if (list) out.push(`<ul>${list.join("")}</ul>`);
+  return out.join("");
+}
+
+function parseEvents(buffer, onEvent) {          // returns the unparsed rest of the buffer
+  let i;
+  while ((i = buffer.indexOf("\n\n")) >= 0) {
+    const block = buffer.slice(0, i); buffer = buffer.slice(i + 2);
+    let name = "message", data = "";
+    for (const line of block.split("\n")) {
+      if (line.startsWith("event: ")) name = line.slice(7);
+      else if (line.startsWith("data: ")) data += line.slice(6);
+    }
+    try { onEvent(name, JSON.parse(data)); } catch { /* ignore a malformed event */ }
+  }
+  return buffer;
+}
+
+function pageChat() {
+  let turns = loadChat(), controller = null;
+  view.innerHTML = `<div class="chat-layout">
+    <div class="chat-main card">
+      <div class="row chat-head"><h1 class="grow">Chat</h1><button id="new-chat">New chat</button></div>
+      <p class="sub">Answers come only from the posts: <b>search</b> finds matching posts, the knowledge <b>graph</b> adds their
+        closest neighbours, a language model answers and cites them as <span class="cite">#id</span>.</p>
+      <div id="thread" class="thread"></div>
+      <form id="ask" class="composer">
+        <textarea id="q" rows="2" maxlength="4000" placeholder="Ask about the posts…  (Enter to send, Shift+Enter for a new line)"></textarea>
+        <button class="primary" id="send">Send</button><button type="button" id="stop" hidden>Stop</button>
+      </form>
+    </div>
+    <aside class="card chat-side"><h2>Sources</h2><div id="sources"><p class="empty">Ask a question to see which posts answer it.</p></div>
+      <div id="src-graph" class="graph-box small" hidden></div></aside></div>`;
+  const thread = document.getElementById("thread"), q = document.getElementById("q");
+  const send = document.getElementById("send"), stop = document.getElementById("stop");
+
+  function showSources(turn) {
+    const box = document.getElementById("sources"), gbox = document.getElementById("src-graph");
+    const src = turn?.sources || [];
+    if (!src.length) { box.innerHTML = `<p class="empty">${turn ? "No posts matched." : "Ask a question to see which posts answer it."}</p>`; gbox.hidden = true; return; }
+    const cited = new Set(turn.citations || []);
+    box.innerHTML = `<p class="hint">${src.length} posts given to the model · ${cited.size} cited${turn.model ? ` · ${esc(turn.model)}` : " · no model"}</p>
+      <ul class="list sources">${src.map(s => `<li id="src-${s.id}" class="${cited.has(s.id) ? "cited" : ""}">
+        <a class="t" href="#/post/${s.id}">#${s.id} ${esc(s.title)}</a>
+        <div>${authorChip(s.author)}${s.tags.map(tagChip).join("")}
+          <span class="chip score">${s.via === "graph" ? `graph · near #${s.near}` : "search"}</span></div>
+        <div class="m">${esc(s.snippet)}${s.snippet.length >= 240 ? "…" : ""}</div></li>`).join("")}</ul>`;
+    gbox.hidden = false;
+    const g = ForceGraph(gbox, { onClick: n => go(nodeHref(n)) });
+    const tags = countBy(src.flatMap(s => s.tags));
+    g.add([...src.map(s => ({ id: P(s.id), ref: s.id, type: "post", label: `#${s.id} ${s.title}`, size: cited.has(s.id) ? 4 : 1 })),
+      ...tags.map(([t, n]) => ({ id: T(t), ref: t, type: "tag", label: "#" + t, size: n }))],
+    src.flatMap(s => s.tags.map(t => ({ source: P(s.id), target: T(t) }))));
+  }
+
+  function bubble(turn, i) {
+    if (turn.role === "user") return `<div class="msg user"><div class="bubble">${esc(turn.content).replace(/\n/g, "<br>")}</div></div>`;
+    const status = turn.pending ? `<span class="typing"><i></i><i></i><i></i></span>`
+      : `<button class="link srcbtn" data-i="${i}">${(turn.sources || []).length} sources</button>${turn.model ? ` · ${esc(turn.model)}` : turn.sources?.length && !turn.error ? " · no model" : ""}${turn.error ? ` · <span class="error">${esc(turn.error)}</span>` : ""}`;
+    return `<div class="msg bot"><div class="bubble">${renderAnswer(turn.content, turn.sources) || (turn.pending ? "" : "<p class=empty>(no answer)</p>")}
+      <div class="meta">${status}</div></div></div>`;
+  }
+
+  function draw() {
+    thread.innerHTML = turns.length ? turns.map(bubble).join("")
+      : `<div class="suggest"><p class="hint">Try one of these:</p>${SUGGESTIONS.map(s => `<button class="sugg">${esc(s)}</button>`).join("")}</div>`;
+    thread.querySelectorAll(".sugg").forEach(b => { b.onclick = () => { q.value = b.textContent; submit(); }; });
+    thread.querySelectorAll(".srcbtn").forEach(b => { b.onclick = () => showSources(turns[+b.dataset.i]); });
+    thread.querySelectorAll("[data-cite]").forEach(a => a.addEventListener("mouseenter", () => {
+      document.querySelectorAll(".sources li").forEach(li => li.classList.toggle("hl", li.id === "src-" + a.dataset.cite));
+    }));
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  async function submit() {
+    const text = q.value.trim();
+    if (!text || controller) return;
+    q.value = "";
+    turns.push({ role: "user", content: text });
+    const bot = { role: "assistant", content: "", sources: [], pending: true };
+    turns.push(bot); draw();
+    const messages = turns.filter(t => !t.pending && t.content).map(t => ({ role: t.role, content: t.content }));
+    controller = new AbortController(); send.hidden = true; stop.hidden = false;
+    try {
+      const r = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages }), signal: controller.signal });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        const d = body.detail;
+        throw new Error(Array.isArray(d) ? d.map(e => e.msg).join("; ") : d || r.statusText);
+      }
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      let buf = "", frame = null;
+      const redraw = () => { if (!frame) frame = requestAnimationFrame(() => { frame = null; draw(); }); };
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf = parseEvents(buf + dec.decode(value, { stream: true }), (name, data) => {
+          if (name === "sources") { bot.sources = data; showSources(bot); }
+          else if (name === "token") bot.content += data.text;
+          else if (name === "done") { bot.citations = data.citations; bot.model = data.model; }
+          else if (name === "error") bot.error = data.detail;
+          redraw();
+        });
+      }
+    } catch (e) {
+      bot.error = e.name === "AbortError" ? "stopped" : e.message;
+    } finally {
+      bot.pending = false; controller = null; send.hidden = false; stop.hidden = true;
+      saveChat(turns); draw(); showSources(bot); q.focus();
+    }
+  }
+
+  document.getElementById("ask").onsubmit = ev => { ev.preventDefault(); submit(); };
+  q.addEventListener("keydown", ev => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); submit(); } });
+  stop.onclick = () => controller && controller.abort();
+  document.getElementById("new-chat").onclick = () => { if (controller) controller.abort(); turns = []; saveChat(turns); draw(); showSources(null); };
+  turns = turns.filter(t => !t.pending);
+  draw();
+  const last = [...turns].reverse().find(t => t.role === "assistant");
+  if (last) showSources(last);
+  q.focus();
+}
+
 // ------------------------------------------------------------------ router
-const routes = { "": pageAnalyze, search: pageSearch, write: pageWrite, post: pagePost, tag: pageTag, author: pageAuthor, graph: pageGraph };
+const routes = { "": pageAnalyze, search: pageSearch, write: pageWrite, post: pagePost, tag: pageTag, author: pageAuthor, graph: pageGraph, chat: pageChat };
 
 async function route() {
   const [path, query] = location.hash.replace(/^#\/?/, "").split("?");

@@ -8,7 +8,8 @@ browser ──HTTP──> web (rag-web portal) ──signed──┐
 client ──HTTP──> gateway <───────────────────────┘ ──signed──> content ──Kafka: content.post.created──┬──> search
                     ├─────signed──────────────────────────────────────────────┼──> search
                     ├─────signed──────────────────────────────────────────────┼──> notify
-                    └─────signed──────────────────────────────────────────────└──> graph
+                    ├─────signed──────────────────────────────────────────────└──> graph
+                    └─signed─> chat ──signed──> search, graph, content (retrieval) ──> LLM (OpenAI-compatible)
         content, search, notify ─ postgres: one role and schema each (content_svc/content, search_svc/search,
                                   notify_svc/notify)
         graph ─ neo4j: (:Author)-[:WROTE]->(:Post)-[:TAGGED]->(:Tag); its schema in db/graph (graph-init)
@@ -16,6 +17,7 @@ client ──HTTP──> gateway <───────────────�
 
 ## Structure you must preserve
 - One service per directory under `services/`; shared code only in `libs/common`.
+- A language model is an external endpoint, called only through `common.llm` (never a raw HTTP client in a service).
 - Service-to-service calls are signed (Ed25519, `common.service_auth`). A callee accepts only the callers
   listed in its `TRUSTED_CALLERS`. New call = `SignedClient` + callee's `TRUSTED_CALLERS` + key in `service-keys`.
 - Each service has its own database role (`<name>_svc`) and schema. Schema changes go only into `db/migrations`

@@ -10,6 +10,7 @@ from fastapi import Body, HTTPException, Path, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import RedirectResponse
 
+from common.relay import relay
 from common.service_auth import SignedClient
 from common.telemetry import create_app
 
@@ -23,6 +24,7 @@ async def lifespan(_app):
     clients["search"] = SignedClient(os.environ["SEARCH_URL"])
     clients["notify"] = SignedClient(os.environ["NOTIFY_URL"])
     clients["graph"] = SignedClient(os.environ["GRAPH_URL"])
+    clients["chat"] = SignedClient(os.environ["CHAT_URL"])
     yield
     for c in clients.values():
         c.close()
@@ -32,6 +34,7 @@ app = create_app("gateway", lifespan=lifespan, description=(
     "Public API of air-harness. Every call is forwarded, signed as `gateway`, to the service that owns the data. "
     "The contract suite in `contract/` is the specification of this API."))
 
+CHAT_EXAMPLE = {"messages": [{"role": "user", "content": "How do consumers avoid processing an event twice?"}]}
 POST_EXAMPLE = {"title": "Hello air-harness", "body": "My first post, searchable in a second.", "author": "me",
                 "tags": ["intro"]}
 
@@ -102,3 +105,11 @@ async def tag_posts(tag: str = Path(pattern=r"^[a-z0-9-]{1,32}$"), limit: int = 
          summary="The knowledge graph at a glance: sizes, biggest tags and authors, how the top tags co-occur")
 async def graph_overview(limit: int = Query(10, ge=1, le=50)) -> Response:
     return await forward("graph", "GET", "/overview", params={"limit": limit})
+
+
+@app.post("/api/chat", summary="Ask a question; the answer cites posts and streams as server-sent events",
+          description="Fixed pipeline: search finds posts matching the question, the knowledge graph adds their "
+                      "closest neighbours, a language model answers from them citing `[#id]`. Events: `sources` "
+                      "(first), `token` (the answer, piece by piece), `done` (`citations`, `model`), `error`.")
+async def chat(body: dict = Body(examples=[CHAT_EXAMPLE])) -> Response:  # noqa: B008 — FastAPI idiom
+    return await relay(clients["chat"], "POST", "/chat", service="chat", json=body)

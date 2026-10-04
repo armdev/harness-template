@@ -99,6 +99,9 @@ flowchart LR
     gw -->|signed Ed25519| search[search<br/>full-text index]
     gw -->|signed Ed25519| notify[notify<br/>notification outbox]
     gw -->|signed Ed25519| kg[graph<br/>knowledge graph]
+    gw -->|signed · streamed| chat[chat<br/>RAG answers]
+    chat -->|retrieve| search & kg & content
+    chat -.->|OpenAI-compatible| llm[(LLM<br/>Ollama or hosted)]
     content -->|content.post.created| kafka[(Kafka<br/>KRaft)]
     kafka -->|consumer group 'search'| search
     kafka -->|consumer group 'notify'| notify
@@ -107,17 +110,18 @@ flowchart LR
     search -->|search_svc · schema search| pg
     notify -->|notify_svc · schema notify| pg
     kg -->|bolt · Author-WROTE-Post-TAGGED-Tag| neo[(Neo4j)]
-    prom[Prometheus] -.->|scrape /metrics| web & gw & content & search & notify & kg
+    prom[Prometheus] -.->|scrape /metrics| web & gw & content & search & notify & kg & chat
 ```
 
 | Service | Responsibility | Exposed | Data | Trusts |
 |---|---|---|---|---|
 | web | rag-web portal: serves the browser client (analyze, search, graph explorer, write) and forwards its `/api/*` calls to the gateway | host `:8081` | — | (public) |
 | gateway | public HTTP API; validates and forwards; holds no data | host `:8080` | — | (public) |
-| content | creates, reads and lists posts (with tags); publishes `content.post.created` | internal `:8000` | `content.posts` (role `content_svc`) | gateway |
-| search | indexes events; full-text search with author and tag filters | internal `:8000` | `search.documents` (role `search_svc`) | gateway |
+| content | creates, reads and lists posts (with tags); publishes `content.post.created` | internal `:8000` | `content.posts` (role `content_svc`) | gateway, chat |
+| search | indexes events; full-text search with author and tag filters | internal `:8000` | `search.documents` (role `search_svc`) | gateway, chat |
 | notify | records one notification per new post (stand-in for e-mail); lists them | internal `:8000` | `notify.outbox` (role `notify_svc`) | gateway |
-| graph | knowledge graph of authors, posts and tags; related posts, tag neighbourhoods, tagged posts, overview | internal `:8000` | Neo4j (`Author`, `Post`, `Tag`; schema in `db/graph`) | gateway |
+| graph | knowledge graph of authors, posts and tags; related posts, tag neighbourhoods, tagged posts, overview | internal `:8000` | Neo4j (`Author`, `Post`, `Tag`; schema in `db/graph`) | gateway, chat |
+| chat | answers questions: search → graph → content → model, citing `[#id]`, streamed (SSE); sources only without a model | internal `:8000` | — (calls a model at `CHAT_LLM_URL`) | gateway |
 
 ### Cross-cutting decisions
 
@@ -146,7 +150,8 @@ flowchart TB
     sk & mig & ki -->|completed| content & search & notify
     sk --> gw[gateway]
     sk & gi & ki -->|completed| kg
-    content & search & notify & kg -->|healthy| gw
+    content & search & kg -->|healthy| chat[chat]
+    content & search & notify & kg & chat -->|healthy| gw
     gw -->|healthy| web[web]
 ```
 

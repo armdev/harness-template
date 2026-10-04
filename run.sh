@@ -4,7 +4,7 @@
 #   ./run.sh               build + start the stack (+ Prometheus), smoke-test it, print URLs and next steps
 #   ./run.sh --check       ... then run the harness: selftest, fast loop, integration (unit + contract)
 #   ./run.sh --full        ... --check plus the pipeline stage (eval, alert rules)
-#   ./run.sh --llm         also start the local LLM (Ollama) and pull LLM_MODEL for the review agent
+#   ./run.sh --llm         also start the local LLM (Ollama) and pull LLM_MODEL: review agent and rag-web Chat
 #   ./run.sh --console     ... and start the web console (API playground, harness runs, agent tasks)
 #   ./run.sh --urls        print URLs and service status of a running stack, start nothing
 #   ./run.sh --down        stop the stack (data in DATA_DIR is kept)
@@ -67,7 +67,7 @@ running() { docker compose --profile observability --profile local-llm ps --stat
 print_urls() {
   printf '\n%sAccessible URLs%s\n' "$B" "$N"
   if running gateway; then
-    printf '  %-26s %s%s%s\n' "Web portal (rag-web)" "$C" "http://$HOST:$WEB_PORT" "$N  analyze · search · graph · write"
+    printf '  %-26s %s%s%s\n' "Web portal (rag-web)" "$C" "http://$HOST:$WEB_PORT" "$N  analyze · search · graph · chat · write"
     printf '  %-26s %s%s%s\n' "Public API" "$C" "$API" "$N  (opens the docs)"
     printf '  %-26s %s%s%s\n' "API docs (Swagger UI)" "$C" "$API/docs" "$N"
     printf '  %-26s %s%s%s\n' "API docs (ReDoc)" "$C" "$API/redoc" "$N"
@@ -225,7 +225,7 @@ status=0
 smoke_test || status=1
 
 if [ $LLM = 1 ]; then
-  title "Local LLM for the review agent ($LLM_MODEL)"
+  title "Local LLM for the review agent and Chat ($LLM_MODEL)"
   export LLM_BASE_URL="${LLM_BASE_URL:-$(env_value LLM_BASE_URL http://host.docker.internal:$OLLAMA_PORT/v1)}"
   run make -s llm LLM_MODEL="$LLM_MODEL" && ok "model ready on http://$HOST:$OLLAMA_PORT/v1; this run reviews with it (LLM_BASE_URL=$LLM_BASE_URL)" \
     || warn "could not start or pull the model — the review agent will report BLIND (advisory, not blocking)"

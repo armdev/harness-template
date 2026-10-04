@@ -39,7 +39,9 @@ command to reach each one (e.g. `docker compose exec postgres psql -U postgres -
 
 **The portal.** http://localhost:8081 (`WEB_PORT`) is rag-web, the application's web client: Analyze (counts,
 top tags and authors, topic map), Search (with tag and author facets), Graph (an explorer you expand by clicking
-nodes), Write (publish and watch search, graph and notify pick the post up), and a page per post, tag and author.
+nodes), Chat (ask questions; answers cite the posts they come from, streamed), Write (publish and watch search, graph
+and notify pick the post up), and a page per post, tag and author. Chat uses a local model after `./run.sh --llm`
+(or `./app.sh up --llm`), any OpenAI-compatible endpoint set in `CHAT_LLM_URL`, or none: it then lists the posts.
 It calls only the gateway, through the `web` service ([LLD](06-low-level-design.md#web-rag-web)).
 
 **Only the application.** `./app.sh` starts the RAG system alone (web, gateway, content, search, notify, graph and

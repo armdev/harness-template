@@ -98,6 +98,9 @@ flowchart LR
     gw -->|"подпись Ed25519"| search["search<br/>полнотекстовый индекс"]
     gw -->|"подпись Ed25519"| notify["notify<br/>журнал уведомлений"]
     gw -->|"подпись Ed25519"| kg["graph<br/>граф знаний"]
+    gw -->|"подпись · поток"| chat["chat<br/>ответы RAG"]
+    chat -->|"выборка"| search & kg & content
+    chat -.->|"OpenAI-совместимый"| llm[("LLM<br/>Ollama или внешний")]
     content -->|content.post.created| kafka[("Kafka<br/>KRaft")]
     kafka -->|"consumer group search"| search
     kafka -->|"consumer group notify"| notify
@@ -106,17 +109,18 @@ flowchart LR
     search -->|"search_svc · схема search"| pg
     notify -->|"notify_svc · схема notify"| pg
     kg -->|"bolt · Author-WROTE-Post-TAGGED-Tag"| neo[(Neo4j)]
-    prom[Prometheus] -.->|"scrape /metrics"| web & gw & content & search & notify & kg
+    prom[Prometheus] -.->|"scrape /metrics"| web & gw & content & search & notify & kg & chat
 ```
 
 | Сервис | Ответственность | Доступ | Данные | Доверяет |
 |---|---|---|---|---|
 | web | портал rag-web: отдаёт браузерный клиент (анализ, поиск, обозреватель графа, публикация) и проксирует его вызовы `/api/*` в gateway | хост `:8081` | — | (публичный) |
 | gateway | публичный HTTP API; валидирует и проксирует; данных не хранит | хост `:8080` | — | (публичный) |
-| content | создаёт, читает и перечисляет посты (с тегами); публикует `content.post.created` | внутренний `:8000` | `content.posts` (роль `content_svc`) | gateway |
-| search | индексирует события; полнотекстовый поиск с фильтрами по автору и тегу | внутренний `:8000` | `search.documents` (роль `search_svc`) | gateway |
+| content | создаёт, читает и перечисляет посты (с тегами); публикует `content.post.created` | внутренний `:8000` | `content.posts` (роль `content_svc`) | gateway, chat |
+| search | индексирует события; полнотекстовый поиск с фильтрами по автору и тегу | внутренний `:8000` | `search.documents` (роль `search_svc`) | gateway, chat |
 | notify | записывает одно уведомление на каждый новый пост (замена e-mail); выдаёт их список | внутренний `:8000` | `notify.outbox` (роль `notify_svc`) | gateway |
-| graph | граф знаний авторов, постов и тегов; связанные посты, окрестность тега, посты тега, обзор | внутренний `:8000` | Neo4j (`Author`, `Post`, `Tag`; схема в `db/graph`) | gateway |
+| graph | граф знаний авторов, постов и тегов; связанные посты, окрестность тега, посты тега, обзор | внутренний `:8000` | Neo4j (`Author`, `Post`, `Tag`; схема в `db/graph`) | gateway, chat |
+| chat | отвечает на вопросы: search → graph → content → модель, со ссылками `[#id]`, потоком (SSE); без модели — только источники | внутренний `:8000` | — (вызывает модель по `CHAT_LLM_URL`) | gateway |
 
 ### Сквозные решения
 
@@ -145,7 +149,8 @@ flowchart TB
     sk & mig & ki -->|completed| content & search & notify
     sk --> gw[gateway]
     sk & gi & ki -->|completed| kg
-    content & search & notify & kg -->|healthy| gw
+    content & search & kg -->|healthy| chat[chat]
+    content & search & notify & kg & chat -->|healthy| gw
     gw -->|healthy| web[web]
 ```
 
