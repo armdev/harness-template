@@ -403,6 +403,7 @@ flowchart LR
 чистые функции в `planning.py`: `rank` (оценка, корзина, причины, `blocked_by`, `blocks`), `schedule` (рабочие дни
 09:00–18:00 без обеда и встреч, не больше `capacity_hours` в день, сначала свои зависимости, куски от 30 минут),
 `prompt` и `read_answer` (перепланирование моделью со строгой проверкой; непригодный ответ — возврат к правилам).
+`jobs.py` выполняет вызовы модели по одному в одном рабочем потоке, объединяет одинаковые запросы и кэширует ответы.
 Полное описание, таблица оценок и API: [Планировщик](08-planner.md).
 
 ### web (rag-web)
@@ -546,6 +547,8 @@ pull request и `HEAD~1` для push.
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD`, `PLANNER_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev`, `planner-dev` | роли сервисов |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | хранилище графа Neo4j |
 | `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | модель чата, её же использует перепланирование с ИИ (любой OpenAI-совместимый эндпоинт; пустой URL — ответы только списком источников и планы только по правилам) |
+| `CHAT_THINK` | `false` | `true` — модели в стиле Qwen3 рассуждают перед ответом (чат и планировщик); на CPU медленно |
+| `OLLAMA_KEEP_ALIVE`, `OLLAMA_NUM_PARALLEL`, `OLLAMA_MAX_LOADED_MODELS`, `OLLAMA_CONTEXT_LENGTH`, `OLLAMA_FLASH_ATTENTION`, `OLLAMA_KV_CACHE_TYPE` | `24h`, `2`, `1`, `8192`, `1`, `q8_0` | контейнер Ollama, настроенный для CPU с большим объёмом RAM ([Планировщик: на CPU](08-planner.md#на-cpu-настроено-для-linux-с-64-гб-ram)) |
 | `LOG_LEVEL` | `INFO` | сервисы |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | куча брокера |
 | `*_TAG` | закреплены | версии образов |

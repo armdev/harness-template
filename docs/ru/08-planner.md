@@ -96,17 +96,77 @@ open http://localhost:8081/#/plan
 | `GET /api/planner/tasks/{key}` · `POST /api/planner/tasks/{key}/status` | одна задача; перевести её в `todo`, `in_progress`, `review` или `done` |
 | `POST /api/planner/meetings` · `GET /api/planner/meetings?attendee=&start=&days=` | добавить или обновить встречу (`id`, `title`, `starts_at`, `ends_at`, `organizer`, `attendees`); список |
 | `GET /api/planner/plan/{handle}?start=&days=` | план по правилам: `order`, `tasks`, `days` (встречи и запланированные куски), `unscheduled`, `warnings`, `finishes`, `summary` |
-| `POST /api/planner/plan/{handle}/ai` | перепланирование моделью с проверкой правилами (выше) |
+| `POST /api/planner/plan/{handle}/ai` | перепланирование моделью с проверкой правилами (выше). Ждёт ответа; пока модель работает, каждые 10 с отправляет пробел (допустимый пробел JSON), чтобы прокси не обрывали соединение |
+| `POST /api/planner/plan/{handle}/ai/jobs` | то же перепланирование как задание: сразу `202` с `id`, `status` (`queued`, `running`, `done`, `failed`), `position` в очереди и `poll` |
+| `GET /api/planner/jobs/{id}` | задание; когда `done`, в `result` план — тот же, что возвращает эндпоинт выше. Задания живут в памяти планировщика (перезапуск их забывает) |
+| `GET /api/planner/status` | модель (`name`, `configured`, `reachable`, `think`, `tasks_shown`), задания по статусам, `cached_answers`, `last_model_seconds` |
+| `POST /api/planner/import` | сотрудники, задачи и встречи одним вызовом и одной транзакцией (всё или ничего; до 1000 / 5000 / 5000); его используют `./app.sh seed planner` и портал |
 | `GET /api/planner/graph?handle=&team=&start=&limit=` | граф работы |
 
 `start` (дата) заменяет «сегодня», и ответы становятся воспроизводимыми; контрактные тесты используют фиксированный понедельник.
+
+## Из кода
+
+Всё, что делает портал, идёт через публичный API (`http://localhost:8080`, Swagger UI на `/docs`). На CPU для перепланирования используйте задания:
+
+```bash
+API=http://localhost:8080/api/planner
+curl -s -X POST $API/import -H 'content-type: application/json' -d @team.json          # загрузить команду разом
+curl -s "$API/tasks?status=open&severity=blocker&severity=critical&sort=due"            # что срочно
+job=$(curl -s -X POST $API/plan/anna.petrosyan/ai/jobs -H 'content-type: application/json' \
+      -d '{"instruction": "В пятницу меня не будет; сначала безопасность"}' | jq -r .id)
+until curl -s $API/jobs/$job | jq -e '.status == "done" or .status == "failed"' >/dev/null; do sleep 2; done
+curl -s $API/jobs/$job | jq '.result | {source, summary, order, days_off, warnings}'
+curl -s $API/status | jq                                                                 # модель готова? очередь?
+```
+
+## На CPU (настроено для Linux с 64 ГБ RAM)
+
+Языковая модель на CPU тратит время на токены: сначала читает промпт, затем пишет ответ по одному токену, и
+скорость упирается в основном в пропускную способность памяти. Поэтому планировщик и модель настроены тратить как
+можно меньше токенов и никогда не делать одну и ту же работу дважды.
+
+| Что | Как | Где |
+|---|---|---|
+| без рассуждений перед ответом | переключатель Qwen3 `/no_think` в последнем сообщении пользователя: модель пропускает текст `<think>`, часто самую длинную часть ответа | `CHAT_THINK=false` (по умолчанию; чат и планировщик) |
+| короткий структурированный ответ | `response_format: json_object` и не больше 1536 токенов ответа | `planner/app.py` |
+| короткий промпт | только 30 самых важных задач, описания обрезаны до 160 символов; остальные сохраняют порядок правил | `planning.MODEL_TASKS` |
+| кэш промпта | сначала то, что меняется реже всего, инструкция — последней: при перепланировании того же человека с новой инструкцией Ollama переиспользует закэшированное начало промпта | `planning.prompt` |
+| одна генерация за раз | один рабочий поток в планировщике: две генерации на тех же ядрах идут примерно вдвое медленнее каждая, поэтому с очередью первая заканчивается раньше | `planner/jobs.py` |
+| никогда дважды | одинаковые запросы делят одно задание; ответ модели кэшируется по всему, что она видела (данные и инструкция), поэтому повторный вопрос ничего не стоит, пока данные не изменились | `planner/jobs.py` |
+| модель остаётся в RAM | модель держится загруженной 24 ч после последнего запроса; загрузка 5–20 ГБ с диска дольше, чем ответ | `OLLAMA_KEEP_ALIVE=24h` |
+| компактный KV-кэш | flash attention и 8-битный KV-кэш: вдвое меньше трафика памяти при практически тех же ответах | `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0` |
+| подходящий контекст | 8192 токена: хватает на промпт и ответ планировщика без резервирования памяти под огромное окно | `OLLAMA_CONTEXT_LENGTH=8192` |
+| два потока | чат и перепланирование могут идти одновременно; поставьте 1, если модель использует только планировщик | `OLLAMA_NUM_PARALLEL=2` |
+
+**Какая модель при 64 ГБ RAM.** Задайте `CHAT_MODEL` в `.env`, затем выполните `./app.sh pull` (скачает и загрузит модель).
+
+| Модель | Размер | На CPU | Когда выбирать |
+|---|---|---|---|
+| `qwen3:4b` | ~2,5 ГБ | быстрее всех | важнее всего скорость ответа |
+| `qwen3:8b` (по умолчанию) | ~5 ГБ | хороший баланс | по умолчанию; подходит любой машине |
+| `qwen3:30b-a3b` | ~19 ГБ | примерно как модель на 4B (смесь экспертов: на токен активны только ~3B параметров), а суждения как у гораздо более крупной | **рекомендуется при 64 ГБ RAM** |
+| `qwen3:14b` | ~9 ГБ | примерно вдвое медленнее 8B | нужны суждения лучше, и ожидание приемлемо |
+
+Измеряйте на своей машине: `GET /api/planner/status` показывает `last_model_seconds`, а `running_seconds` задания
+растёт, пока модель работает.
+
+**Ollama, установленная на машине** (не контейнер), не читает переменные выше из `.env`. Задайте их её службе и
+перезапустите:
+
+```bash
+sudo systemctl edit ollama        # добавить в [Service]:
+#   Environment="OLLAMA_KEEP_ALIVE=24h" "OLLAMA_FLASH_ATTENTION=1" "OLLAMA_KV_CACHE_TYPE=q8_0"
+#   Environment="OLLAMA_CONTEXT_LENGTH=8192" "OLLAMA_NUM_PARALLEL=2" "OLLAMA_MAX_LOADED_MODELS=1"
+sudo systemctl restart ollama
+```
 
 ## Где что лежит
 
 | Часть | Файлы |
 |---|---|
-| сервис | `services/planner/app.py` (API, Postgres), `planning.py` (приоритет, расписание, промпт и чтение ответа: чистые функции) |
-| тесты | `services/planner/tests/test_planning.py` (юнит, `make test`), `contract/test_planner.py` (API) |
+| сервис | `services/planner/app.py` (API, Postgres), `jobs.py` (очередь модели и кэш ответов), `planning.py` (приоритет, расписание, промпт и чтение ответа: чистые функции) |
+| тесты | `services/planner/tests/` (юнит, `make test`), `contract/test_planner.py`, `contract/test_planner_api.py` (API) |
 | схема | `db/migrations/V9__planner.sql`: роль `planner_svc`, схема `planner`, таблицы `employees`, `tasks`, `meetings` |
 | подключение | compose `planner` (доверяет `gateway`, свой ключ, `PLANNER_DB_PASSWORD`), маршруты gateway `/api/planner/*`, задание и алерты Prometheus |
 | данные | `services/web/static/datasets/planner.json` (загружает `tools/seed.py` или портал) |

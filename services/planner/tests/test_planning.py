@@ -115,3 +115,11 @@ def test_prompt_lists_tasks_days_and_instruction():
     user = msgs[1]["content"]
     assert "A-1 [" in user and "Fix card outage" in user and "Monday 2030-01-07 1.5 h" in user
     assert user.endswith("Instruction: security first")
+
+
+def test_prompt_shows_only_the_most_important_tasks_and_ends_with_the_instruction():
+    many = planning.rank([task(f"A-{i}", "minor", title=f"t{i}") for i in range(1, planning.MODEL_TASKS + 6)], MON)
+    emp = {"name": "Ann", "handle": "ann", "role": "SRE", "team": "core", "capacity_hours": 6}
+    user = planning.prompt(emp, many, {MON: 0}, "  security   first ", MON)[1]["content"]
+    assert user.count("\n- A-") == planning.MODEL_TASKS
+    assert "(5 lower-priority tasks are not listed" in user and user.endswith("Instruction: security first")

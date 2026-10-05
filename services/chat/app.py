@@ -31,7 +31,8 @@ from rag import NO_SOURCES, build_messages, citations, event, fallback_answer, r
 log = logging.getLogger(__name__)
 clients: dict[str, SignedClient] = {}
 model = ChatModel(os.environ.get("CHAT_LLM_URL", ""), os.environ.get("CHAT_MODEL", "qwen3:8b"),
-                  api_key=os.environ.get("CHAT_LLM_API_KEY", "not-needed"))
+                  api_key=os.environ.get("CHAT_LLM_API_KEY", "not-needed"),
+                  think=os.environ.get("CHAT_THINK", "false").lower() == "true")   # no reasoning: fast on a CPU
 GRAPH_SEEDS, GRAPH_PER_SEED, GRAPH_MAX = 3, 2, 3      # neighbours of the 3 best hits, 2 each, at most 3 in total
 
 

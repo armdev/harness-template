@@ -44,6 +44,33 @@ def test_error_status_and_unreachable_endpoint_raise_model_unavailable():
         list(model(refuse).stream([]))
 
 
+def test_no_think_and_json_mode_shape_the_request():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, content=sse("{}"))
+
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "q"}]
+    qwen = ChatModel("http://llm.test/v1", "qwen3:8b", transport=httpx.MockTransport(handler), think=False)
+    list(qwen.stream(msgs, json_mode=True))
+    assert seen["body"]["messages"][1]["content"] == "q\n\n/no_think" and msgs[1]["content"] == "q"
+    assert seen["body"]["response_format"] == {"type": "json_object"}
+    other = ChatModel("http://llm.test/v1", "llama3.1", transport=httpx.MockTransport(handler), think=False)
+    list(other.stream(msgs))
+    assert seen["body"]["messages"] == msgs and "response_format" not in seen["body"]
+
+
+def test_available_probes_models():
+    assert model(lambda r: httpx.Response(200, json={"data": []})).available()
+    assert not model(lambda r: httpx.Response(404)).available()
+
+    def refuse(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    assert not model(refuse).available() and not ChatModel("", "m").available()
+
+
 def test_unconfigured_model():
     assert not ChatModel("", "m").configured and ChatModel("http://x/v1", "m").configured
 

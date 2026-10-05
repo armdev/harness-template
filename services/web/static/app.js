@@ -580,25 +580,21 @@ function workingDays(n) {
 }
 
 async function loadPlannerDataset(btn, msg) {
-  btn.disabled = true;
+  btn.disabled = true; msg.textContent = "loading…";
   try {
     const data = await (await fetch("/static/datasets/planner.json")).json();
     const days = workingDays(1 + Math.max(...data.tasks.map(t => t.due_in || 0), ...data.meetings.map(m => m.day)));
-    const post = (path, body) => api(path, { method: "POST", body: JSON.stringify(body) });
-    const total = data.employees.length + data.tasks.length + data.meetings.length;
-    let n = 0;
-    const step = () => { msg.textContent = `loading ${++n} of ${total}…`; };
-    for (const e of data.employees) { await post("/planner/employees", e); step(); }
-    for (const t of data.tasks) {
-      const { due_in, ...body } = t;
-      await post("/planner/tasks", { ...body, due: due_in == null ? null : days[due_in] }); step();
-    }
-    for (const m of data.meetings) {
-      const [h, min] = m.start.split(":").map(Number), end = h * 60 + min + m.minutes;
-      const at = x => `${days[m.day]}T${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}:00`;
-      await post("/planner/meetings", { id: m.id, title: m.title, organizer: m.organizer, attendees: m.attendees,
-                                        starts_at: at(h * 60 + min), ends_at: at(end) }); step();
-    }
+    const pad = x => String(x).padStart(2, "0");
+    const at = (day, x) => `${days[day]}T${pad(Math.floor(x / 60))}:${pad(x % 60)}:00`;
+    const body = {
+      employees: data.employees,
+      tasks: data.tasks.map(({ due_in, ...t }) => ({ ...t, due: due_in == null ? null : days[due_in] })),
+      meetings: data.meetings.map(m => {
+        const [h, min] = m.start.split(":").map(Number), from = h * 60 + min;
+        return { id: m.id, title: m.title, organizer: m.organizer, attendees: m.attendees, starts_at: at(m.day, from), ends_at: at(m.day, from + m.minutes) };
+      }),
+    };
+    await api("/planner/import", { method: "POST", body: JSON.stringify(body) });     // one call, one transaction
     route();
   } catch (e) { msg.textContent = e.message; btn.disabled = false; }
 }
@@ -707,17 +703,23 @@ const AI_HINTS = ["Incidents and security first, then deadlines", "Unblock my co
 
 async function pagePerson(handle, q) {
   const days = Math.min(10, Math.max(1, Number(q.get("days")) || 5));
-  const [base, g] = await Promise.all([get(`/planner/plan/${encodeURIComponent(handle)}`, { days }), get("/planner/graph", { handle })]);
+  const [base, g, status] = await Promise.all([get(`/planner/plan/${encodeURIComponent(handle)}`, { days }), get("/planner/graph", { handle }),
+    get("/planner/status").catch(() => null)]);
+  const m = status && status.model;
+  const modelChip = !m ? "" : !m.configured ? `<span class="chip score">no model: rules only</span>`
+    : `<span class="chip ${m.reachable ? "ok" : "score"}" title="${m.think ? "reasoning on" : "reasoning off (fast on a CPU)"}">${esc(m.name)} · ${m.reachable ? "ready" : "not reachable"}${
+      status.jobs.queued + status.jobs.running ? ` · ${status.jobs.queued + status.jobs.running} in queue` : ""}</span>`;
   const e = base.employee;
   view.innerHTML = `<p class="crumbs"><a href="#/plan">Plan</a> / ${esc(e.team)}</p>
     <div class="row"><h1 class="grow">${esc(e.name)} <span class="hint">@${esc(e.handle)} · ${esc(e.role)} · ${e.capacity_hours} focus h/day</span></h1>
       <label class="hint">days <select id="days">${[5, 10].map(n => `<option${n === days ? " selected" : ""}>${n}</option>`).join("")}</select></label></div>
-    <div class="card ai"><h2>Re-plan with AI</h2>
+    <div class="card ai"><h2>Re-plan with AI ${modelChip}</h2>
       <p class="hint">The model re-orders the open tasks following your instruction and may mark days off; the rules then check it: dependencies first,
         meetings and focus hours respected. Without a model the plan stays the rules' plan.</p>
       <form id="aif" class="row"><input class="grow" name="instruction" maxlength="500" placeholder="e.g. ${esc(AI_HINTS[0])}">
         <button class="primary">Re-plan with AI</button><button type="button" id="rules">Rules' plan</button></form>
-      <div class="row hints">${AI_HINTS.map(h => `<button type="button" class="sugg small-btn">${esc(h)}</button>`).join("")}</div></div>
+      <div class="row hints">${AI_HINTS.map(h => `<button type="button" class="sugg small-btn">${esc(h)}</button>`).join("")}</div>
+      <p id="ai-progress" class="hint"></p></div>
     <div id="plan-out"></div>
     <div class="card"><h2>Work graph of ${esc(e.name)}: tasks, what they wait for, who waits for them, who they meet</h2>
       <div id="plan-graph" class="graph-box small"></div></div>`;
@@ -744,13 +746,27 @@ async function pagePerson(handle, q) {
   };
   show(base);
   const form = document.getElementById("aif"), btn = form.querySelector("button.primary");
+  // A job: queued behind other re-plans (a CPU answers one at a time), then running; poll until it is done.
   form.onsubmit = async ev => {
     ev.preventDefault();
-    btn.disabled = true; btn.textContent = "Thinking…";
+    btn.disabled = true; btn.textContent = "Queued…";
+    const progress = document.getElementById("ai-progress");
     try {
-      show(await api(`/planner/plan/${encodeURIComponent(handle)}/ai`, { method: "POST",
-        body: JSON.stringify({ instruction: String(new FormData(form).get("instruction") || ""), days }) }));
-    } catch (err) { out.insertAdjacentHTML("afterbegin", `<p class="error">${esc(err.message)}</p>`); }
+      let job = await api(`/planner/plan/${encodeURIComponent(handle)}/ai/jobs`, { method: "POST",
+        body: JSON.stringify({ instruction: String(new FormData(form).get("instruction") || ""), days }) });
+      while (job.status === "queued" || job.status === "running") {
+        if (!document.body.contains(form)) return;                            // the user navigated away
+        btn.textContent = job.status === "queued" ? `Queued (#${job.position})…` : `Thinking ${Math.round(job.running_seconds)} s…`;
+        progress.textContent = job.status === "queued" ? "waiting for the model: it answers one re-plan at a time"
+          : `the model is working${status && status.last_model_seconds ? `; the last re-plan took ${Math.round(status.last_model_seconds)} s` : ""}`;
+        await sleep(job.status === "queued" ? 1500 : 1000);
+        job = await get(`/planner/jobs/${job.id}`);
+      }
+      if (job.status === "failed") throw new Error(job.error);
+      progress.textContent = job.result.cached ? "answered from the cache: the model saw exactly this before"
+        : job.result.model_seconds ? `the model answered in ${job.result.model_seconds} s` : "";
+      show(job.result);
+    } catch (err) { progress.textContent = ""; out.insertAdjacentHTML("afterbegin", `<p class="error">${esc(err.message)}</p>`); }
     finally { btn.disabled = false; btn.textContent = "Re-plan with AI"; }
   };
   document.getElementById("rules").onclick = () => show(base);

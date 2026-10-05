@@ -397,6 +397,7 @@ Employees, Jira-style tasks and meetings in schema `planner` (role `planner_svc`
 pure functions in `planning.py`: `rank` (score, bucket, reasons, `blocked_by`, `blocks`), `schedule` (working days
 09:00–18:00 minus lunch and meetings, at most `capacity_hours` a day, own dependencies first, chunks of 30 min or
 more), `prompt` and `read_answer` (the model re-plan, validated strictly; anything unusable falls back to the rules).
+`jobs.py` runs model calls one at a time on one worker thread, shares identical requests and caches answers.
 The full description, the scoring table and the API: [Planner](08-planner.md).
 
 ### web (rag-web)
@@ -541,6 +542,8 @@ All variables have defaults in `docker-compose.yml` / `compose.harness.yml` and 
 | `CONTENT_DB_PASSWORD`, `SEARCH_DB_PASSWORD`, `NOTIFY_DB_PASSWORD`, `PLANNER_DB_PASSWORD` | `content-dev`, `search-dev`, `notify-dev`, `planner-dev` | service roles |
 | `GRAPH_DB_PASSWORD`, `NEO4J_HEAP` | `graph-dev`, `512m` | Neo4j graph store |
 | `CHAT_LLM_URL`, `CHAT_MODEL`, `CHAT_LLM_API_KEY` | `http://ollama:11434/v1`, `qwen3:8b`, `not-needed` | Chat model, also used by the planner's AI re-plan (any OpenAI-compatible endpoint; set the URL empty for sources-only answers and rules-only plans) |
+| `CHAT_THINK` | `false` | `true` lets Qwen3-style models reason before answering (chat and planner); slow on a CPU |
+| `OLLAMA_KEEP_ALIVE`, `OLLAMA_NUM_PARALLEL`, `OLLAMA_MAX_LOADED_MODELS`, `OLLAMA_CONTEXT_LENGTH`, `OLLAMA_FLASH_ATTENTION`, `OLLAMA_KV_CACHE_TYPE` | `24h`, `2`, `1`, `8192`, `1`, `q8_0` | the Ollama container, tuned for a CPU with plenty of RAM ([Planner: on a CPU](08-planner.md#on-a-cpu-tuned-for-linux-with-64-gb-of-ram)) |
 | `LOG_LEVEL` | `INFO` | services |
 | `KAFKA_HEAP_OPTS` | `-Xmx512m -Xms256m` | broker heap |
 | `*_TAG` | pinned | image versions |

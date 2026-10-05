@@ -206,6 +206,36 @@ async def ai_plan(body: Annotated[dict, Body(examples=[AI_EXAMPLE])],
     return await relay(clients["planner"], "POST", f"/plan/{handle}/ai", service="planner", json=body)
 
 
+@app.post("/api/planner/plan/{handle}/ai/jobs", status_code=202,
+          summary="Queue a re-plan with the language model; poll the returned job",
+          description="Returns at once with a job (`id`, `status`: queued, running, done or failed; `position` while "
+                      "queued; `poll`: where to ask). For a model on a CPU, where an answer can take minutes. An "
+                      "identical request still waiting or running is the same job; an answer the model already gave "
+                      "for the same data comes back as a job that is already done.")
+async def ai_plan_job(body: Annotated[dict, Body(examples=[AI_EXAMPLE])],
+                      handle: str = Path(pattern=HANDLE)) -> Response:
+    return await forward("planner", "POST", f"/plan/{handle}/ai/jobs", json=body)
+
+
+@app.get("/api/planner/jobs/{job_id}", summary="A re-plan job: its status and, when done, the plan (`result`)")
+async def planner_job(job_id: str = Path(pattern=r"^[0-9a-f]{32}$")) -> Response:
+    return await forward("planner", "GET", f"/jobs/{job_id}")
+
+
+@app.get("/api/planner/status", summary="The planner's model (configured, reachable, thinking) and its queue")
+async def planner_status() -> Response:
+    return await forward("planner", "GET", "/status")
+
+
+@app.post("/api/planner/import", summary="Bulk import employees, tasks and meetings in one transaction",
+          description="All or nothing; each item is upserted as by the single endpoints. Up to 1000 employees, "
+                      "5000 tasks and 5000 meetings per call.")
+async def planner_import(body: Annotated[dict, Body(examples=[{"employees": [EMPLOYEE_EXAMPLE],
+                                                               "tasks": [TASK_EXAMPLE],
+                                                               "meetings": [MEETING_EXAMPLE]}])]) -> Response:
+    return await relay(clients["planner"], "POST", "/import", service="planner", json=body)   # no 5 s limit
+
+
 @app.get("/api/planner/graph", summary="Who works on what and what waits for what: employees, tasks, "
                                         "dependencies, shared meetings")
 async def planner_graph(handle: str | None = Query(None, pattern=HANDLE),

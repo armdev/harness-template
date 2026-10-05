@@ -122,7 +122,7 @@ urls() {
   printf '  %-24s %s\n' "  knowledge graph" "GET  $API/api/posts/{id}/related · /api/tags/{tag}[/posts] · /api/graph/overview"
   printf '  %-24s %s\n' "  notifications" "GET  $API/api/notifications?author="
   printf '  %-24s %s\n' "  chat (RAG answer)" "POST $API/api/chat   (streamed; model: $(env_value CHAT_LLM_URL http://ollama:11434/v1))"
-  printf '  %-24s %s\n' "  planner" "GET  $API/api/planner/employees · /tasks · /plan/{handle} · POST /plan/{handle}/ai"
+  printf '  %-24s %s\n' "  planner" "GET  $API/api/planner/employees · /tasks · /plan/{handle} · /status · POST /import · /plan/{handle}/ai[/jobs]"
   if "${DC[@]}" --profile observability ps --status running --services 2>/dev/null | grep -qx prometheus; then
     printf '  %-24s %s%s%s\n' "Prometheus" "$C" "$PROMETHEUS" "$N"
   fi

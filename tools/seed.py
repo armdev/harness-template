@@ -6,9 +6,9 @@
 
 Posts: the dataset is validated first (the same rules as POST /api/posts). Seeding is idempotent: a post is skipped
 when its author already has a post with the same title, so running it twice adds nothing.
-Planner ({"kind": "planner", ...}): employees, tasks and meetings are upserted by handle, key and id. Their dates are
-relative (day 0 = the first working day from today), so seeding again moves the demo to the current week and resets
-the tasks' status.
+Planner ({"kind": "planner", ...}): one POST /api/planner/import upserts employees, tasks and meetings by handle, key
+and id, in one transaction. Their dates are relative (day 0 = the first working day from today), so seeding again
+moves the demo to the current week and resets the tasks' status.
 """
 from __future__ import annotations
 
@@ -99,33 +99,31 @@ def working_days(start: date, n: int) -> list[date]:
     return days
 
 
-def seed_planner(name: str, data: dict, today: date) -> int:
-    """Employees, then tasks (due_in: working days from today), then meetings (day: working-day offset)."""
+def planner_import(data: dict, today: date) -> tuple[dict, date]:
+    """The dataset as one POST /api/planner/import body: due_in (working days from today) and day (working-day
+    offset of a meeting) become dates."""
     horizon = 1 + max([t["due_in"] or 0 for t in data["tasks"]] + [m["day"] for m in data["meetings"]])
     days = working_days(today, horizon)
-    with httpx.Client(base_url=GATEWAY_URL, timeout=15) as api:
-        def put(path: str, body: dict, what: str) -> bool:
-            r = api.post(path, json=body)
-            if r.status_code != 200:
-                print(f"{name}: POST {path} failed for {what}: {r.status_code} {r.text}", file=sys.stderr)
-            return r.status_code == 200
+    tasks = [{k: v for k, v in t.items() if k != "due_in"} | {"due": None if t.get("due_in") is None
+                                                              else str(days[t["due_in"]])} for t in data["tasks"]]
+    meetings = []
+    for m in data["meetings"]:
+        starts = datetime.combine(days[m["day"]], datetime.strptime(m["start"], "%H:%M").time())
+        meetings.append({k: m[k] for k in ("id", "title", "organizer", "attendees")} | {
+            "starts_at": starts.isoformat(), "ends_at": (starts + timedelta(minutes=m["minutes"])).isoformat()})
+    return {"employees": data["employees"], "tasks": tasks, "meetings": meetings}, days[0]
 
-        for e in data["employees"]:
-            if not put("/api/planner/employees", e, e["handle"]):
-                return 1
-        for t in data["tasks"]:
-            body = {k: v for k, v in t.items() if k != "due_in"}
-            body["due"] = None if t.get("due_in") is None else str(days[t["due_in"]])
-            if not put("/api/planner/tasks", body, t["key"]):
-                return 1
-        for m in data["meetings"]:
-            starts = datetime.combine(days[m["day"]], datetime.strptime(m["start"], "%H:%M").time())
-            body = {k: m[k] for k in ("id", "title", "organizer", "attendees")} | {
-                "starts_at": starts.isoformat(), "ends_at": (starts + timedelta(minutes=m["minutes"])).isoformat()}
-            if not put("/api/planner/meetings", body, m["id"]):
-                return 1
-    print(f"{name}: {len(data['employees'])} employees, {len(data['tasks'])} tasks, {len(data['meetings'])} meetings "
-          f"(day 0 = {days[0]})")
+
+def seed_planner(name: str, data: dict, today: date) -> int:
+    """Everything in one call, one transaction: all of it is loaded, or nothing."""
+    body, day0 = planner_import(data, today)
+    with httpx.Client(base_url=GATEWAY_URL, timeout=120) as api:
+        r = api.post("/api/planner/import", json=body)
+    if r.status_code != 200:
+        print(f"{name}: POST /api/planner/import failed: {r.status_code} {r.text[:2000]}", file=sys.stderr)
+        return 1
+    n = r.json()
+    print(f"{name}: {n['employees']} employees, {n['tasks']} tasks, {n['meetings']} meetings (day 0 = {day0})")
     return 0
 
 

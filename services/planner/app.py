@@ -5,17 +5,28 @@ the working days around the meetings. On request a language model re-orders a pe
 instruction ("Friday off", "security first"); its order is checked and the same scheduler fills the week, so a
 model can change what comes first but never break a dependency or overfill a day. Without a usable model the plan
 is the rules' plan, and says so (`source`).
+
+Built for a model on a CPU: model calls run one at a time on a single worker (jobs.py), identical requests share a
+job, a model answer is cached by everything the model saw, the prompt is short and asks for JSON without
+reasoning (PLANNER_THINK=false). Slow answers are available as jobs (submit, then poll), and the synchronous
+endpoint keeps its connection alive while it waits.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
+from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from datetime import date, datetime, time, timedelta
+from time import monotonic
 from typing import Annotated, Literal
 
+import psycopg
 from fastapi import Depends, HTTPException, Path, Query
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, StreamingResponse
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -24,12 +35,19 @@ import planning
 from common.llm import ChatModel, ModelUnavailable, ThinkFilter
 from common.service_auth import require_caller
 from common.telemetry import create_app
+from jobs import Cache, Jobs, fingerprint
 
 log = logging.getLogger(__name__)
 
 pool = ConnectionPool(os.environ.get("DB_DSN", ""), open=False, kwargs={"row_factory": dict_row})
 model = ChatModel(os.environ.get("PLANNER_LLM_URL", ""), os.environ.get("PLANNER_MODEL", "qwen3:8b"),
-                  api_key=os.environ.get("PLANNER_LLM_API_KEY", "not-needed"))
+                  api_key=os.environ.get("PLANNER_LLM_API_KEY", "not-needed"), timeout=600.0,
+                  think=os.environ.get("PLANNER_THINK", "false").lower() == "true")
+answers = Cache(256)                                    # model answers by fingerprint of what the model saw
+jobs = Jobs(errors=(psycopg.Error, HTTPException))      # one model call at a time: a CPU is fastest that way
+HEARTBEAT = 10.0                                        # seconds between keep-alive spaces of a waiting answer
+probe: dict = {"at": -1e9, "reachable": False}
+last_model_seconds: list[float] = []                    # the duration of the latest generation, for /status
 HANDLE = r"^[A-Za-z0-9._-]{1,64}$"
 HANDLE_RE = re.compile(HANDLE)
 Severity = Literal["blocker", "critical", "major", "minor", "trivial"]
@@ -114,6 +132,12 @@ class MeetingIn(BaseModel):
         return self
 
 
+class ImportIn(BaseModel):
+    employees: list[EmployeeIn] = Field(default_factory=list, max_length=1000)
+    tasks: list[TaskIn] = Field(default_factory=list, max_length=5000)
+    meetings: list[MeetingIn] = Field(default_factory=list, max_length=5000)
+
+
 class AiIn(BaseModel):
     instruction: str = Field("", max_length=500, description="e.g. 'I am off on Friday', 'security work first'")
     days: int = Field(5, ge=1, le=10)
@@ -121,6 +145,27 @@ class AiIn(BaseModel):
 
 
 # ------------------------------------------------------------------ data
+UPSERT_EMPLOYEE = """
+    INSERT INTO planner.employees (handle, name, role, team, capacity_hours) VALUES (%s, %s, %s, %s, %s)
+    ON CONFLICT (handle) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role, team = EXCLUDED.team,
+       capacity_hours = EXCLUDED.capacity_hours, updated_at = now()"""
+UPSERT_TASK = """
+    INSERT INTO planner.tasks (key, title, description, severity, status, assignee, estimate_hours, due, depends_on)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (key) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
+       severity = EXCLUDED.severity, status = EXCLUDED.status, assignee = EXCLUDED.assignee,
+       estimate_hours = EXCLUDED.estimate_hours, due = EXCLUDED.due, depends_on = EXCLUDED.depends_on,
+       updated_at = now()"""
+UPSERT_MEETING = """
+    INSERT INTO planner.meetings (id, title, starts_at, ends_at, organizer, attendees) VALUES (%s, %s, %s, %s, %s, %s)
+    ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, starts_at = EXCLUDED.starts_at,
+       ends_at = EXCLUDED.ends_at, organizer = EXCLUDED.organizer, attendees = EXCLUDED.attendees"""
+
+
+def task_row(t: TaskIn) -> tuple:
+    return (t.key, t.title, t.description, t.severity, t.status, t.assignee, t.estimate_hours, t.due, t.depends_on)
+
+
 def all_tasks() -> list[dict]:
     with pool.connection() as conn:
         return conn.execute(
@@ -164,10 +209,7 @@ def meeting_minutes(day: date, meetings: list[dict]) -> int:
 def upsert_employee(e: EmployeeIn, _caller: str = Depends(auth)) -> dict:
     with pool.connection() as conn:
         conn.execute(
-            """INSERT INTO planner.employees (handle, name, role, team, capacity_hours) VALUES (%s, %s, %s, %s, %s)
-               ON CONFLICT (handle) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role, team = EXCLUDED.team,
-                  capacity_hours = EXCLUDED.capacity_hours, updated_at = now()""",
-            (e.handle, e.name, e.role, e.team, e.capacity_hours))
+            UPSERT_EMPLOYEE, (e.handle, e.name, e.role, e.team, e.capacity_hours))
     return employee(e.handle)
 
 
@@ -203,13 +245,7 @@ def upsert_task(t: TaskIn, _caller: str = Depends(auth)) -> dict:
                 "SELECT 1 FROM planner.employees WHERE handle = %s", (t.assignee,)).fetchone():
             raise HTTPException(status_code=422, detail=f"unknown assignee {t.assignee}")
         conn.execute(
-            """INSERT INTO planner.tasks (key, title, description, severity, status, assignee, estimate_hours, due,
-                                         depends_on) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-               ON CONFLICT (key) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
-                  severity = EXCLUDED.severity, status = EXCLUDED.status, assignee = EXCLUDED.assignee,
-                  estimate_hours = EXCLUDED.estimate_hours, due = EXCLUDED.due, depends_on = EXCLUDED.depends_on,
-                  updated_at = now()""",
-            (t.key, t.title, t.description, t.severity, t.status, t.assignee, t.estimate_hours, t.due, t.depends_on))
+            UPSERT_TASK, task_row(t))
     return task(t.key)
 
 
@@ -272,14 +308,9 @@ def list_tasks(assignee: str | None = Query(None, pattern=HANDLE),
 @app.post("/meetings")
 def upsert_meeting(m: MeetingIn, _caller: str = Depends(auth)) -> dict:
     with pool.connection() as conn:
-        row = conn.execute(
-            """INSERT INTO planner.meetings (id, title, starts_at, ends_at, organizer, attendees)
-               VALUES (%s, %s, %s, %s, %s, %s)
-               ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, starts_at = EXCLUDED.starts_at,
-                  ends_at = EXCLUDED.ends_at, organizer = EXCLUDED.organizer, attendees = EXCLUDED.attendees
-               RETURNING id, title, starts_at, ends_at, organizer, attendees""",
-            (m.id, m.title, m.starts_at, m.ends_at, m.organizer, m.attendees)).fetchone()
-    return row
+        conn.execute(UPSERT_MEETING, (m.id, m.title, m.starts_at, m.ends_at, m.organizer, m.attendees))
+        return conn.execute("SELECT id, title, starts_at, ends_at, organizer, attendees FROM planner.meetings"
+                            " WHERE id = %s", (m.id,)).fetchone()
 
 
 @app.get("/meetings")
@@ -288,6 +319,28 @@ def list_meetings(attendee: str | None = Query(None, pattern=HANDLE), start: dat
     """Meetings on the calendar days from `start` (today), one person's or everyone's, in time order."""
     first = start or date.today()
     return {"start": first, "meetings": meetings_between(first, first + timedelta(days=days), attendee)}
+
+
+# ------------------------------------------------------------------ bulk import
+@app.post("/import")
+def bulk_import(data: ImportIn, _caller: str = Depends(auth)) -> dict:
+    """Employees, tasks and meetings in one transaction (all or nothing), upserted like the single endpoints.
+    An assignee must be an employee of this import or one that already exists."""
+    with pool.connection() as conn:
+        given = {e.handle for e in data.employees}
+        wanted = sorted({t.assignee for t in data.tasks if t.assignee} - given)
+        if wanted:
+            known = {r["handle"] for r in conn.execute(
+                "SELECT handle FROM planner.employees WHERE handle = ANY(%s)", (wanted,)).fetchall()}
+            if unknown := [h for h in wanted if h not in known]:
+                raise HTTPException(status_code=422, detail=f"unknown assignee(s): {', '.join(unknown[:10])}")
+        with conn.cursor() as cur:
+            cur.executemany(UPSERT_EMPLOYEE, [(e.handle, e.name, e.role, e.team, e.capacity_hours)
+                                              for e in data.employees])
+            cur.executemany(UPSERT_TASK, [task_row(t) for t in data.tasks])
+            cur.executemany(UPSERT_MEETING, [(m.id, m.title, m.starts_at, m.ends_at, m.organizer, m.attendees)
+                                             for m in data.meetings])
+    return {"employees": len(data.employees), "tasks": len(data.tasks), "meetings": len(data.meetings)}
 
 
 # ------------------------------------------------------------------ plans
@@ -331,9 +384,19 @@ def get_plan(handle: str = Path(pattern=HANDLE), start: date | None = None, days
     return plan_for(handle, start, days)
 
 
-@app.post("/plan/{handle}/ai")
-def ai_plan(body: AiIn, handle: str = Path(pattern=HANDLE), _caller: str = Depends(auth)) -> dict:
-    """The model re-orders the person's tasks following the instruction; the rules check and schedule its order."""
+def ask_model(messages: list[dict], open_keys: list[str], plan_days: list[date]) -> dict:
+    """One generation; raises ModelUnavailable or planning.BadAnswer."""
+    think = ThinkFilter()
+    pieces = model.stream(messages, temperature=0.1, max_tokens=4096 if model.think else 1536,
+                          json_mode=not model.think)
+    text = "".join(think.feed(p) for p in pieces) + think.flush()
+    return planning.read_answer(text, open_keys, plan_days)
+
+
+def ai_plan_now(handle: str, body: AiIn, generate: bool = True) -> dict | None:
+    """The model's plan for the person (from the cache when the model saw exactly this before), or the rules' plan
+    with the reason in `fallback`. With generate=False: None when only a new generation can answer (the caller
+    queues it), so cached answers and fallbacks never wait behind other people's generations."""
     rules = plan_for(handle, body.start, body.days)
     if not rules["tasks"]:
         return rules
@@ -341,21 +404,86 @@ def ai_plan(body: AiIn, handle: str = Path(pattern=HANDLE), _caller: str = Depen
         return rules | {"fallback": "no language model is configured (PLANNER_LLM_URL); this is the rules' plan"}
     meetings = {d["date"]: d["meeting_minutes"] / 60 for d in rules["days"]}
     messages = planning.prompt(rules["employee"], rules["tasks"], meetings, body.instruction, rules["start"])
-    try:
-        think = ThinkFilter()
-        text = "".join(think.feed(p) for p in model.stream(messages, temperature=0.1, max_tokens=4096)) + think.flush()
-        answer = planning.read_answer(text, rules["order"], list(meetings))
-    except ModelUnavailable as e:
-        log.warning("model unavailable: %s", e)
-        return rules | {"fallback": "the language model is not reachable; this is the rules' plan"}
-    except planning.BadAnswer as e:
-        log.warning("unusable model answer: %s", e)
-        return rules | {"fallback": f"{e}; this is the rules' plan"}
+    key = fingerprint(model.model, model.think, messages, rules["order"])
+    answer, seconds = answers.get(key), 0.0
+    if answer is None and not generate:
+        return None
+    if answer is None:
+        t0 = monotonic()
+        try:
+            answer = ask_model(messages, rules["order"], list(meetings))
+        except ModelUnavailable as e:
+            log.warning("model unavailable: %s", e)
+            return rules | {"fallback": "the language model is not reachable; this is the rules' plan"}
+        except planning.BadAnswer as e:
+            log.warning("unusable model answer: %s", e)
+            return rules | {"fallback": f"{e}; this is the rules' plan"}
+        seconds = round(monotonic() - t0, 1)
+        last_model_seconds[:] = [seconds]
+        answers.put(key, answer)
     plan = plan_for(handle, body.start, body.days, answer["order"], frozenset(answer["days_off"]))
     moved = sum(1 for a, b in zip(answer["order"], rules["order"], strict=True) if a != b)
     return plan | {"source": "model", "model": model.model, "notes": answer["notes"],
                    "summary": answer["summary"] or plan["summary"], "instruction": body.instruction,
-                   "days_off": answer["days_off"], "changed": moved}
+                   "days_off": answer["days_off"], "changed": moved, "cached": seconds == 0.0,
+                   "model_seconds": seconds}
+
+
+def submit(handle: str, body: AiIn):
+    """A job for the re-plan: already done when no generation is needed, else queued for the model worker."""
+    about = {"handle": handle, "instruction": body.instruction}
+    quick = ai_plan_now(handle, body, generate=False)    # also the 404 for an unknown person, before any job
+    if quick is not None:
+        return jobs.completed(quick, about)
+    return jobs.submit(fingerprint(handle, body.model_dump(mode="json")), lambda: ai_plan_now(handle, body), about)
+
+
+@app.post("/plan/{handle}/ai")
+def ai_plan(body: AiIn, handle: str = Path(pattern=HANDLE), _caller: str = Depends(auth)):
+    """The model re-orders the person's tasks following the instruction; the rules check and schedule its order.
+    Waits for the answer: a quick one (cached, no model, fallback) is returned at once; a slow one is preceded by a
+    space every HEARTBEAT seconds (valid JSON whitespace), so proxies on the way do not time out."""
+    job = submit(handle, body)
+    if job.done.wait(timeout=2.0):
+        if job.status == "done":
+            return job.result
+        return JSONResponse({"detail": job.error}, status_code=500)
+
+    def body_with_heartbeat() -> Iterator[str]:
+        while not job.done.wait(timeout=HEARTBEAT):
+            yield " "
+        out = job.result if job.status == "done" else {"detail": job.error, "status": "failed"}
+        yield json.dumps(jsonable_encoder(out))
+
+    return StreamingResponse(body_with_heartbeat(), media_type="application/json")
+
+
+@app.post("/plan/{handle}/ai/jobs", status_code=202)
+def ai_plan_job(body: AiIn, handle: str = Path(pattern=HANDLE), _caller: str = Depends(auth)) -> dict:
+    """Queue a re-plan and return at once; poll GET /jobs/{id} until `status` is `done` (then `result` is the plan,
+    as POST /plan/{handle}/ai returns it) or `failed`. An identical request still waiting or running is the same job."""
+    job = submit(handle, body)
+    return job.view(jobs.position(job)) | {"poll": f"/api/planner/jobs/{job.id}"}
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str = Path(pattern=r"^[0-9a-f]{32}$"), _caller: str = Depends(auth)) -> dict:
+    job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"no job {job_id} (jobs are forgotten when the planner restarts)")
+    return job.view(jobs.position(job))
+
+
+@app.get("/status")
+def status(_caller: str = Depends(auth)) -> dict:
+    """The model behind the AI re-plan and the work waiting for it."""
+    if monotonic() - probe["at"] > 15:
+        probe["at"], probe["reachable"] = monotonic(), model.available()
+    return {"model": {"name": model.model if model.configured else None, "configured": model.configured,
+                      "reachable": probe["reachable"], "think": model.think,
+                      "tasks_shown": planning.MODEL_TASKS},
+            "jobs": jobs.counts(), "cached_answers": len(answers),
+            "last_model_seconds": last_model_seconds[0] if last_model_seconds else None}
 
 
 # ------------------------------------------------------------------ graph

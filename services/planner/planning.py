@@ -19,6 +19,8 @@ DAY_START, DAY_END, LUNCH = 9 * 60, 18 * 60, (13 * 60, 14 * 60)     # minutes si
 MIN_CHUNK = 30                                                       # a slot shorter than this is not worth a task
 BUCKETS = ((90, "now"), (50, "next"), (20, "later"), (0, "someday"))
 KEY_RE = re.compile(r"^[A-Z][A-Z0-9]{1,9}-[0-9]{1,6}$")    # a Jira key: PROJECT-123
+MODEL_TASKS = 30         # the model sees the most important tasks only: on a CPU every prompt token costs time
+DESCRIPTION_CHARS = 160
 
 
 def is_open(t: dict) -> bool:
@@ -224,23 +226,30 @@ SYSTEM = (
     "Answer with one JSON object and nothing else:\n"
     '{"order": ["KEY-1", "..."], "notes": {"KEY-1": "why it is here, one short sentence"}, '
     '"summary": "two or three sentences to the employee about the plan"}\n'
-    "The order lists every task key exactly once.")
+    "The order lists every task key above exactly once. Give notes for at most 8 tasks: the ones you moved or that "
+    "matter most.")
 
 
 def prompt(employee: dict, ranked_open: list[dict], meeting_hours: dict[date, float], instruction: str,
            today: date) -> list[dict]:
-    """meeting_hours: the plan's days and the hours of meetings on each."""
+    """meeting_hours: the plan's days and the hours of meetings on each. Only the first MODEL_TASKS tasks are listed
+    (the rest keep the rules' order after them). What changes least comes first and the instruction last, so a
+    server that caches the prompt prefix (Ollama, llama.cpp, vLLM) re-reads only the end when the instruction
+    changes."""
+    shown, rest = ranked_open[:MODEL_TASKS], len(ranked_open) - MODEL_TASKS
     lines = [f"Employee: {employee['name']} (@{employee['handle']}), {employee['role']}, team {employee['team']}; "
              f"{employee['capacity_hours']:g} focus hours a day. Today is {today:%A %Y-%m-%d}.",
              "Plan days and their meeting hours: " + ", ".join(f"{d:%A} {d} {h:g} h" for d, h in meeting_hours.items()),
              "", "Open tasks (rule score in brackets: severity, due date, what waits for it):"]
-    for t in ranked_open:
+    for t in shown:
         deps = f"; depends on {', '.join(t['depends_on'])}" if t["depends_on"] else ""
         due = f"; due {t['due']}" if t["due"] else ""
-        desc = " ".join(t["description"].split())[:240]
+        desc = " ".join(t["description"].split())[:DESCRIPTION_CHARS]
         lines.append(f"- {t['key']} [{t['score']}] {t['title']} — {t['severity']}, {t['status']}, "
                      f"{float(t['estimate_hours']):g} h{due}{deps}. {desc}")
-    lines += ["", f"Instruction: {instruction.strip() or 'none; use your judgement'}"]
+    if rest > 0:
+        lines.append(f"({rest} lower-priority tasks are not listed; they follow in the rules' order.)")
+    lines += ["", f"Instruction: {' '.join(instruction.split()) or 'none; use your judgement'}"]
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": "\n".join(lines)}]
 
 
